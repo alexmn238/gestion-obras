@@ -26,14 +26,14 @@ export default function Home() {
             className="w-full flex items-center justify-center px-6 py-3.5 border border-slate-700 text-base font-medium rounded-lg text-amber-400 bg-slate-800 hover:bg-slate-700 transition-colors shadow-lg"
           >
             Panel de Administrador (Todas las Obras)
-			<footer className="mt-8 text-center text-xs text-slate-500">
+          </Link>
+        </div>
+      </div>
+	  <footer className="mt-8 text-center text-xs text-slate-500">
   <Link href="/privacidad" className="hover:text-slate-300 underline transition-colors">
     Aviso Legal y Política de Privacidad
   </Link>
 </footer>
-          </Link>
-        </div>
-      </div>
     </main>
   );
 }
