@@ -7,6 +7,7 @@ import { supabase } from '../../../../lib/supabase';
 interface DailyLog {
   id: string;
   obra_id: string;
+  nombre_obra?: string;
   room_name: string;
   description: string;
   photos_urls: string[];
@@ -15,9 +16,7 @@ interface DailyLog {
 
 export default function ObraClientePage() {
   const params = useParams();
-  
-  // Como la carpeta se llama [obraId], leemos exactamente params.obraId
-  const obraId = params?.obraId as string;
+  const obraId = (params?.obraId || params?.id) as string;
 
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,44 +27,42 @@ export default function ObraClientePage() {
 
       setLoading(true);
 
-      try {
-        const { data, error } = await supabase
-          .from('daily_logs')
-          .select('*')
-          .eq('obra_id', obraId)
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('obra_id', obraId)
+        .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Error Supabase:', error.message);
-        } else {
-          setLogs(data || []);
-        }
-      } catch (err) {
-        console.error('Error de conexión:', err);
-      } finally {
-        setLoading(false);
+      if (!error && data) {
+        setLogs(data);
       }
+
+      setLoading(false);
     }
 
     cargarPartesObra();
   }, [obraId]);
 
+  // Nombre legible de la obra
+  const tituloObra = logs.length > 0 && logs[0].nombre_obra
+    ? logs[0].nombre_obra
+    : 'Seguimiento de Su Obra';
+
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-2xl mx-auto">
       <header className="border-b border-slate-800 pb-4 mb-6">
-        <h1 className="text-2xl font-bold text-blue-400">Seguimiento de Su Obra</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Código de referencia: <span className="font-mono text-white">{obraId || 'Sin código'}</span>
+        {/* Mostramos el nombre descriptivo que puso el trabajador */}
+        <h1 className="text-2xl font-bold text-blue-400">{tituloObra}</h1>
+        <p className="text-xs text-slate-400 mt-1">
+          Acceso privado seguro mediante identificador único
         </p>
       </header>
 
-      {!obraId ? (
-        <div className="text-center py-10 text-slate-400">Cargando identificador de obra...</div>
-      ) : loading ? (
+      {loading ? (
         <div className="text-center py-10 text-slate-400">Cargando los avances de su obra...</div>
       ) : logs.length === 0 ? (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center text-slate-300">
-          Aún no se han publicado avances para la obra "{obraId}".
+          Aún no se han publicado avances para esta obra.
         </div>
       ) : (
         <div className="space-y-6">

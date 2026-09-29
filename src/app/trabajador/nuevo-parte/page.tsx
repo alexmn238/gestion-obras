@@ -4,13 +4,18 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
+interface ObraInfo {
+  obra_id: string; // UUID aleatorio único
+  nombre_obra: string; // Nombre amigable (ej: "Reforma Chalet Torrent")
+}
+
 export default function NuevoPartePage() {
   const router = useRouter();
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [misObras, setMisObras] = useState<string[]>([]);
-  const [obraId, setObraId] = useState('');
-  const [nuevaObraInput, setNuevaObraInput] = useState('');
+  const [misObras, setMisObras] = useState<ObraInfo[]>([]);
+  const [selectedObraId, setSelectedObraId] = useState('');
+  const [nuevaObraNombre, setNuevaObraNombre] = useState('');
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -18,7 +23,7 @@ export default function NuevoPartePage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
-  // 1. Verificar sesión del trabajador y cargar ÚNICAMENTE sus obras asignadas
+  // 1. Cargar únicamente las faenas del trabajador autenticado
   useEffect(() => {
     async function inicializarTrabajador() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -30,22 +35,33 @@ export default function NuevoPartePage() {
 
       setUserId(user.id);
 
-      // Consultar únicamente las obras creadas/asociadas al user_id del trabajador actual
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id')
+        .select('obra_id, nombre_obra')
         .eq('user_id', user.id);
 
       if (!error && data) {
-        const unicas = Array.from(new Set(data.map((item) => item.obra_id))).filter(Boolean);
-        setMisObras(unicas);
-        if (unicas.length > 0) {
-          setObraId(unicas[0]);
+        // Agrupar obras únicas conservando su UUID y nombre
+        const mapaObras = new Map<string, string>();
+        data.forEach((item) => {
+          if (item.obra_id) {
+            mapaObras.set(item.obra_id, item.nombre_obra || item.obra_id);
+          }
+        });
+
+        const listaObras: ObraInfo[] = Array.from(mapaObras.entries()).map(([obra_id, nombre_obra]) => ({
+          obra_id,
+          nombre_obra,
+        }));
+
+        setMisObras(listaObras);
+        if (listaObras.length > 0) {
+          setSelectedObraId(listaObras[0].obra_id);
         } else {
-          setObraId('nueva');
+          setSelectedObraId('nueva');
         }
       } else {
-        setObraId('nueva');
+        setSelectedObraId('nueva');
       }
 
       setLoadingPage(false);
@@ -54,16 +70,14 @@ export default function NuevoPartePage() {
     inicializarTrabajador();
   }, [router]);
 
-  // Manejador para cerrar sesión
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
   };
 
-  // Enlace directo de la obra seleccionada para el cliente
-  const obraActualParaLink = obraId === 'nueva' ? nuevaObraInput.trim() : obraId;
-  const clienteUrl = typeof window !== 'undefined' && obraActualParaLink
-    ? `${window.location.origin}/cliente/obra/${obraActualParaLink}`
+  // Enlace del cliente basado en el UUID
+  const clienteUrl = typeof window !== 'undefined' && selectedObraId && selectedObraId !== 'nueva'
+    ? `${window.location.origin}/cliente/obra/${selectedObraId}`
     : '';
 
   const copiarEnlaceCliente = () => {
@@ -73,7 +87,7 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  // 2. Publicar nuevo parte vinculándolo obligatoriamente al user_id
+  // 2. Publicar nuevo parte
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -85,12 +99,21 @@ export default function NuevoPartePage() {
         return;
       }
 
-      const targetObraId = obraId === 'nueva' ? nuevaObraInput.trim() : obraId;
+      let finalObraId = selectedObraId;
+      let finalNombreObra = '';
 
-      if (!targetObraId) {
-        alert('Por favor, especifica un código o nombre de obra.');
-        setLoading(false);
-        return;
+      if (selectedObraId === 'nueva') {
+        if (!nuevaObraNombre.trim()) {
+          alert('Por favor, indica un nombre para la nueva reforma.');
+          setLoading(false);
+          return;
+        }
+        // Generar un UUID seguro e imposible de adivinar
+        finalObraId = crypto.randomUUID();
+        finalNombreObra = nuevaObraNombre.trim();
+      } else {
+        const obraExistente = misObras.find((o) => o.obra_id === selectedObraId);
+        finalNombreObra = obraExistente ? obraExistente.nombre_obra : selectedObraId;
       }
 
       const photoUrls: string[] = [];
@@ -100,7 +123,7 @@ export default function NuevoPartePage() {
           const file = files[i];
           const fileExt = file.name.split('.').pop();
           const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-          const filePath = `${targetObraId}/${fileName}`;
+          const filePath = `${finalObraId}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
             .from('obras-media')
@@ -118,11 +141,12 @@ export default function NuevoPartePage() {
 
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
-          obra_id: targetObraId,
+          obra_id: finalObraId,
+          nombre_obra: finalNombreObra,
           room_name: roomName,
           description: description,
           photos_urls: photoUrls,
-          user_id: userId, // Garantiza que solo este trabajador sea el dueño
+          user_id: userId,
         },
       ]);
 
@@ -130,10 +154,12 @@ export default function NuevoPartePage() {
 
       alert('Parte publicado correctamente');
 
-      if (!misObras.includes(targetObraId)) {
-        setMisObras([...misObras, targetObraId]);
+      if (!misObras.some((o) => o.obra_id === finalObraId)) {
+        setMisObras([...misObras, { obra_id: finalObraId, nombre_obra: finalNombreObra }]);
       }
-      setObraId(targetObraId);
+
+      setSelectedObraId(finalObraId);
+      setNuevaObraNombre('');
       setRoomName('');
       setDescription('');
       setFiles(null);
@@ -147,14 +173,13 @@ export default function NuevoPartePage() {
   if (loadingPage) {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-6 flex items-center justify-center">
-        <p className="text-slate-400">Verificando faenas del trabajador...</p>
+        <p className="text-slate-400">Cargando faenas del trabajador...</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-lg mx-auto space-y-6">
-      {/* Encabezado */}
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Panel de Trabajador</h1>
@@ -168,11 +193,11 @@ export default function NuevoPartePage() {
         </button>
       </div>
 
-      {/* BLOQUE PARA COPIAR ENLACE AL CLIENTE */}
-      {obraActualParaLink && (
+      {/* BLOQUE ENLACE UUID AL CLIENTE */}
+      {clienteUrl && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
           <label className="block text-xs font-medium text-slate-300">
-            Enlace directo para tu cliente:
+            Enlace privado y seguro para tu cliente:
           </label>
           <div className="flex items-center justify-between gap-2 bg-slate-900 p-2.5 rounded border border-slate-700">
             <span className="text-xs font-mono text-blue-400 truncate">
@@ -189,30 +214,30 @@ export default function NuevoPartePage() {
         </div>
       )}
 
-      {/* FORMULARIO DE REGISTRO DE PARTE */}
+      {/* FORMULARIO */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Seleccionar tu Faena / Obra</label>
+          <label className="block text-sm font-medium mb-1">Seleccionar Faena / Obra</label>
           <select
-            value={obraId}
-            onChange={(e) => setObraId(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+            value={selectedObraId}
+            onChange={(e) => setSelectedObraId(e.target.value)}
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             {misObras.map((obra) => (
-              <option key={obra} value={obra}>
-                {obra}
+              <option key={obra.obra_id} value={obra.obra_id}>
+                {obra.nombre_obra}
               </option>
             ))}
-            <option value="nueva">+ Registrar nueva faena...</option>
+            <option value="nueva">+ Registrar nueva reforma...</option>
           </select>
 
-          {obraId === 'nueva' && (
+          {selectedObraId === 'nueva' && (
             <input
               type="text"
               required
-              placeholder="Código o nombre de la nueva obra"
-              value={nuevaObraInput}
-              onChange={(e) => setNuevaObraInput(e.target.value)}
+              placeholder="Nombre de la reforma (ej. Reforma Cocina Don Mateo)"
+              value={nuevaObraNombre}
+              onChange={(e) => setNuevaObraNombre(e.target.value)}
               className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2"
             />
           )}
@@ -223,7 +248,7 @@ export default function NuevoPartePage() {
           <input
             type="text"
             required
-            placeholder="Ej. Cocina, Fachada principal"
+            placeholder="Ej. Baño principal"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
             className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -235,7 +260,7 @@ export default function NuevoPartePage() {
           <textarea
             required
             rows={4}
-            placeholder="Detalla lo realizado en el día..."
+            placeholder="Detalla los avances del día..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
