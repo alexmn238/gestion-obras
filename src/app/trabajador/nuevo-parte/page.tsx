@@ -6,7 +6,16 @@ import { supabase } from '../../../lib/supabase';
 
 interface ObraInfo {
   obra_id: string; // UUID aleatorio único
-  nombre_obra: string; // Nombre amigable (ej: "Reforma Chalet Torrent")
+  nombre_obra: string; // Nombre legible (ej: "Reforma Cocina Don Mateo")
+}
+
+interface Comment {
+  id: string;
+  obra_id: string;
+  daily_log_id?: string | null;
+  autor: string;
+  contenido: string;
+  created_at: string;
 }
 
 export default function NuevoPartePage() {
@@ -23,7 +32,11 @@ export default function NuevoPartePage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
-  // 1. Cargar únicamente las faenas del trabajador autenticado
+  // Estado para comentarios
+  const [comentarios, setComentarios] = useState<Comment[]>([]);
+  const [nuevoComentarioTrabajador, setNuevoComentarioTrabajador] = useState('');
+
+  // 1. Cargar obras del trabajador autenticado
   useEffect(() => {
     async function inicializarTrabajador() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -41,7 +54,6 @@ export default function NuevoPartePage() {
         .eq('user_id', user.id);
 
       if (!error && data) {
-        // Agrupar obras únicas conservando su UUID y nombre
         const mapaObras = new Map<string, string>();
         data.forEach((item) => {
           if (item.obra_id) {
@@ -70,12 +82,34 @@ export default function NuevoPartePage() {
     inicializarTrabajador();
   }, [router]);
 
+  // 2. Cargar comentarios cuando cambia la obra seleccionada
+  useEffect(() => {
+    if (!selectedObraId || selectedObraId === 'nueva') {
+      setComentarios([]);
+      return;
+    }
+
+    async function cargarComentarios() {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        setComentarios(data);
+      }
+    }
+
+    cargarComentarios();
+  }, [selectedObraId]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
   };
 
-  // Enlace del cliente basado en el UUID
+  // Enlace UUID del cliente
   const clienteUrl = typeof window !== 'undefined' && selectedObraId && selectedObraId !== 'nueva'
     ? `${window.location.origin}/cliente/obra/${selectedObraId}`
     : '';
@@ -87,7 +121,34 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  // 2. Publicar nuevo parte
+  // Enviar respuesta desde el lado del trabajador
+  const handleEnviarComentario = async () => {
+    if (!nuevoComentarioTrabajador.trim() || !selectedObraId || selectedObraId === 'nueva') return;
+
+    const { error } = await supabase.from('comments').insert([
+      {
+        obra_id: selectedObraId,
+        daily_log_id: null,
+        autor: 'Trabajador',
+        contenido: nuevoComentarioTrabajador.trim(),
+      },
+    ]);
+
+    if (!error) {
+      setNuevoComentarioTrabajador('');
+      // Recargar la lista de comentarios
+      const { data } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+      if (data) setComentarios(data);
+    } else {
+      alert('Error al enviar respuesta: ' + error.message);
+    }
+  };
+
+  // 3. Publicar parte diario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -108,7 +169,6 @@ export default function NuevoPartePage() {
           setLoading(false);
           return;
         }
-        // Generar un UUID seguro e imposible de adivinar
         finalObraId = crypto.randomUUID();
         finalNombreObra = nuevaObraNombre.trim();
       } else {
@@ -180,10 +240,11 @@ export default function NuevoPartePage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-lg mx-auto space-y-6">
+      {/* Encabezado */}
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Panel de Trabajador</h1>
-          <p className="text-xs text-slate-400">Tus faenas activas</p>
+          <p className="text-xs text-slate-400">Tus faenas asignadas</p>
         </div>
         <button
           onClick={handleLogout}
@@ -193,11 +254,11 @@ export default function NuevoPartePage() {
         </button>
       </div>
 
-      {/* BLOQUE ENLACE UUID AL CLIENTE */}
+      {/* BLOQUE ENLACE UUID PARA EL CLIENTE */}
       {clienteUrl && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
           <label className="block text-xs font-medium text-slate-300">
-            Enlace privado y seguro para tu cliente:
+            Enlace privado para enviar al cliente:
           </label>
           <div className="flex items-center justify-between gap-2 bg-slate-900 p-2.5 rounded border border-slate-700">
             <span className="text-xs font-mono text-blue-400 truncate">
@@ -214,7 +275,57 @@ export default function NuevoPartePage() {
         </div>
       )}
 
-      {/* FORMULARIO */}
+      {/* BLOQUE DE COMENTARIOS CON EL CLIENTE */}
+      {selectedObraId && selectedObraId !== 'nueva' && (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+            💬 Comentarios y Observaciones de la Obra
+          </h3>
+
+          {comentarios.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Sin comentarios registrados en esta obra.</p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {comentarios.map((c) => (
+                <div
+                  key={c.id}
+                  className={`p-2.5 rounded border text-xs space-y-1 ${
+                    c.autor === 'Cliente'
+                      ? 'bg-blue-950/40 border-blue-800/40 text-blue-200'
+                      : 'bg-slate-900 border-slate-700 text-slate-200'
+                  }`}
+                >
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span className="font-bold">{c.autor}</span>
+                    <span>{new Date(c.created_at).toLocaleString('es-ES')}</span>
+                  </div>
+                  <p>{c.contenido}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Responder al cliente */}
+          <div className="flex gap-2 pt-2 border-t border-slate-700">
+            <input
+              type="text"
+              placeholder="Responder al cliente..."
+              value={nuevoComentarioTrabajador}
+              onChange={(e) => setNuevoComentarioTrabajador(e.target.value)}
+              className="flex-1 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={handleEnviarComentario}
+              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded text-xs transition-colors shrink-0"
+            >
+              Responder
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FORMULARIO PUBLICAR PARTE */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Seleccionar Faena / Obra</label>
@@ -238,7 +349,7 @@ export default function NuevoPartePage() {
               placeholder="Nombre de la reforma (ej. Reforma Cocina Don Mateo)"
               value={nuevaObraNombre}
               onChange={(e) => setNuevaObraNombre(e.target.value)}
-              className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2"
+              className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 text-sm"
             />
           )}
         </div>
@@ -251,7 +362,7 @@ export default function NuevoPartePage() {
             placeholder="Ej. Baño principal"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
@@ -263,7 +374,7 @@ export default function NuevoPartePage() {
             placeholder="Detalla los avances del día..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
@@ -281,7 +392,7 @@ export default function NuevoPartePage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors disabled:opacity-50 mt-4"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors disabled:opacity-50 mt-4 text-sm"
         >
           {loading ? 'Subiendo fotos y datos...' : 'Publicar Parte'}
         </button>
