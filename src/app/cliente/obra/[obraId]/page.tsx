@@ -14,6 +14,7 @@ interface Log {
   fecha_inicio?: string;
   fecha_fin?: string;
   porcentaje_avance?: number;
+  estado_obra?: string;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ interface Budget {
   monto_total: number;
   monto_pagado: number;
   es_extra: boolean;
+  comprobante_url?: string;
 }
 
 export default function ClienteObraPage() {
@@ -45,6 +47,7 @@ export default function ClienteObraPage() {
   const [nombreEmpresa] = useState('Gestión de Reformas');
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [autorNombre, setAutorNombre] = useState('Cliente');
+  const [estanciaFiltro, setEstanciaFiltro] = useState<string>('Todas');
 
   const [budgetIdNotificar, setBudgetIdNotificar] = useState<string>('');
   const [montoNotificar, setMontoNotificar] = useState('');
@@ -140,6 +143,10 @@ export default function ClienteObraPage() {
     }
   };
 
+  const handleImprimirInforme = () => {
+    window.print();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center">
@@ -152,29 +159,46 @@ export default function ClienteObraPage() {
   }
 
   const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento de Reforma';
-
   const logUltimo = logs.length > 0 ? logs[0] : null;
   const fechaInicioObra = logUltimo?.fecha_inicio || (logs.length > 0 ? logs[logs.length - 1].created_at : null);
   const fechaFinObra = logUltimo?.fecha_fin || null;
   const porcentajeAvance = logUltimo?.porcentaje_avance || 0;
+  const estadoObra = logUltimo?.estado_obra || 'En Progreso';
+
+  // Obtener lista única de estancias para filtrar
+  const estanciasUnicas = Array.from(new Set(logs.map((l) => l.room_name)));
+
+  const logsFiltrados = estanciaFiltro === 'Todas'
+    ? logs
+    : logs.filter((l) => l.room_name === estanciaFiltro);
 
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
   const totalPendiente = totalPresupuestado - totalPagado;
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 print:bg-white print:text-black print:p-0">
       
-      {/* CABECERA PRINCIPAL CON BARRA DE PROGRESO */}
-      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4">
+      {/* CABECERA PRINCIPAL */}
+      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4 print:border-none print:shadow-none print:p-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
                 🏗️ {nombreEmpresa}
               </span>
-              <span className="text-xs text-slate-400">• Portal del Cliente</span>
               
+              {/* BADGE DE ESTADO DE LA OBRA */}
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                estadoObra === 'Finalizada'
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                  : estadoObra === 'Pausada'
+                  ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                  : 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+              }`}>
+                ● {estadoObra}
+              </span>
+
               {fechaInicioObra && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
                   📅 Inicio: {new Date(fechaInicioObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -187,46 +211,55 @@ export default function ClienteObraPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
-            <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight print:text-black">{nombreObraHeader}</h1>
+            <p className="text-xs text-slate-400 mt-1 print:text-slate-600">Avances diarios, estado financiero y comunicación directa</p>
           </div>
 
-          {budgets.length > 0 && (
-            <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl">
-              <div className="text-center px-2">
-                <span className="block text-[10px] text-slate-400 font-bold uppercase">Total</span>
-                <span className="text-sm font-bold text-white font-mono">{totalPresupuestado.toFixed(2)} €</span>
+          <div className="flex flex-col sm:flex-row items-end gap-3">
+            <button
+              onClick={handleImprimirInforme}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all print:hidden shadow-sm"
+            >
+              📄 Descargar Informe PDF
+            </button>
+
+            {budgets.length > 0 && (
+              <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl print:bg-slate-100 print:border-slate-300">
+                <div className="text-center px-2">
+                  <span className="block text-[10px] text-slate-400 font-bold uppercase print:text-slate-600">Total</span>
+                  <span className="text-sm font-bold text-white font-mono print:text-black">{totalPresupuestado.toFixed(2)} €</span>
+                </div>
+                <div className="border-r border-slate-800 print:border-slate-300"></div>
+                <div className="text-center px-2">
+                  <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
+                  <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
+                </div>
+                <div className="border-r border-slate-800 print:border-slate-300"></div>
+                <div className="text-center px-2">
+                  <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
+                  <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
+                </div>
               </div>
-              <div className="border-r border-slate-800"></div>
-              <div className="text-center px-2">
-                <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
-                <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
-              </div>
-              <div className="border-r border-slate-800"></div>
-              <div className="text-center px-2">
-                <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
-                <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* BARRA DE PROGRESO DE LA REFORMA */}
-        <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2">
+        {/* BARRA DE PROGRESO */}
+        <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2 print:bg-slate-100 print:border-slate-300">
           <div className="flex justify-between items-center text-xs">
-            <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px]">Avance Global de la Obra</span>
+            <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] print:text-black">Avance Global de la Obra</span>
             <span className="font-extrabold text-emerald-400 font-mono text-sm">{porcentajeAvance}% Completado</span>
           </div>
           <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
             <div
-              className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-700 ease-out shadow-sm shadow-emerald-500/20"
+              className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-700"
               style={{ width: `${porcentajeAvance}%` }}
             ></div>
           </div>
         </div>
       </header>
 
-      {/* SECCIÓN PRESUPUESTOS Y NOTIFICACIONES */}
+      {/* SECCIÓN PRESUPUESTOS Y COMPROBANTES */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
@@ -240,7 +273,14 @@ export default function ClienteObraPage() {
                     <span className="font-semibold text-white block">
                       {b.titulo} {b.es_extra && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
                     </span>
-                    <span className="text-[10px] text-emerald-400">Pagado: {Number(b.monto_pagado).toFixed(2)} €</span>
+                    <div className="flex items-center gap-2 text-[10px] text-emerald-400 mt-0.5">
+                      <span>Pagado: {Number(b.monto_pagado).toFixed(2)} €</span>
+                      {b.comprobante_url && (
+                        <a href={b.comprobante_url} target="_blank" rel="noreferrer" className="text-blue-400 underline font-bold">
+                          🧾 Factura / Recibo
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
                     <span className="font-mono font-bold text-white block">{Number(b.monto_total).toFixed(2)} €</span>
@@ -251,7 +291,7 @@ export default function ClienteObraPage() {
             </div>
           </div>
 
-          <div className="md:col-span-5 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
+          <div className="md:col-span-5 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3 print:hidden">
             <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
               📩 Avisar de Transferencia / Pago
             </h2>
@@ -293,19 +333,46 @@ export default function ClienteObraPage() {
         </section>
       )}
 
-      {/* BITÁCORA DE AVANCES */}
+      {/* BITÁCORA CON FILTRO POR ZONA / ESTANCIA */}
       <section className="space-y-4">
-        <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-          📸 Avances Diarios de la Obra ({logs.length})
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            📸 Avances Diarios de la Obra ({logsFiltrados.length})
+          </h2>
 
-        {logs.length === 0 ? (
+          {/* FILTRO DE ESTANCIAS */}
+          {estanciasUnicas.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 print:hidden">
+              <button
+                onClick={() => setEstanciaFiltro('Todas')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  estanciaFiltro === 'Todas' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                Todas
+              </button>
+              {estanciasUnicas.map((estancia) => (
+                <button
+                  key={estancia}
+                  onClick={() => setEstanciaFiltro(estancia)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    estanciaFiltro === estancia ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {estancia}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {logsFiltrados.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-xs">
-            Aún no se han registrado partes ni fotografías en esta reforma.
+            No se han encontrado registros para la estancia seleccionada.
           </div>
         ) : (
           <div className="space-y-6">
-            {logs.map((log) => (
+            {logsFiltrados.map((log) => (
               <article key={log.id} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
@@ -344,8 +411,8 @@ export default function ClienteObraPage() {
         )}
       </section>
 
-      {/* COMENTARIOS */}
-      <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
+      {/* CANAL DE COMENTARIOS */}
+      <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md print:hidden">
         <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
           💬 Consultas y Comentarios con la Empresa
         </h2>

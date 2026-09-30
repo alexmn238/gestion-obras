@@ -10,6 +10,7 @@ interface ObraInfo {
   fecha_inicio?: string;
   fecha_fin?: string;
   porcentaje_avance?: number;
+  estado_obra?: string;
 }
 
 interface Comment {
@@ -29,6 +30,7 @@ interface Budget {
   notificacion_pago?: number;
   mensaje_pago?: string;
   es_extra: boolean;
+  comprobante_url?: string;
 }
 
 interface PaymentLog {
@@ -50,6 +52,8 @@ export default function NuevoPartePage() {
   const [fechaInicioInput, setFechaInicioInput] = useState('');
   const [fechaFinInput, setFechaFinInput] = useState('');
   const [porcentajeInput, setPorcentajeInput] = useState(0);
+  const [estadoObraInput, setEstadoObraInput] = useState('En Progreso');
+
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -64,6 +68,7 @@ export default function NuevoPartePage() {
   const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [nuevoTotal, setNuevoTotal] = useState('');
+  const [comprobanteUrlInput, setComprobanteUrlInput] = useState('');
   const [esExtra, setEsExtra] = useState(false);
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export default function NuevoPartePage() {
 
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id, nombre_obra, fecha_inicio, fecha_fin, porcentaje_avance, created_at')
+        .select('obra_id, nombre_obra, fecha_inicio, fecha_fin, porcentaje_avance, estado_obra, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -95,6 +100,7 @@ export default function NuevoPartePage() {
               fecha_inicio: item.fecha_inicio || item.created_at,
               fecha_fin: item.fecha_fin || '',
               porcentaje_avance: item.porcentaje_avance || 0,
+              estado_obra: item.estado_obra || 'En Progreso',
             });
           }
         });
@@ -106,6 +112,7 @@ export default function NuevoPartePage() {
           setSelectedObraId(listaObras[0].obra_id);
           setPorcentajeInput(listaObras[0].porcentaje_avance || 0);
           setFechaFinInput(listaObras[0].fecha_fin || '');
+          setEstadoObraInput(listaObras[0].estado_obra || 'En Progreso');
         } else {
           setSelectedObraId('nueva');
         }
@@ -131,6 +138,7 @@ export default function NuevoPartePage() {
     if (obraActual) {
       setPorcentajeInput(obraActual.porcentaje_avance || 0);
       setFechaFinInput(obraActual.fecha_fin || '');
+      setEstadoObraInput(obraActual.estado_obra || 'En Progreso');
     }
 
     async function cargarDatosObra() {
@@ -229,12 +237,14 @@ export default function NuevoPartePage() {
         monto_total: parseFloat(nuevoTotal),
         monto_pagado: 0,
         es_extra: esExtra,
+        comprobante_url: comprobanteUrlInput.trim() || null,
       },
     ]);
 
     if (!error) {
       setNuevoTitulo('');
       setNuevoTotal('');
+      setComprobanteUrlInput('');
       setEsExtra(false);
       recargarPagosYPresupuestos();
     }
@@ -326,6 +336,7 @@ export default function NuevoPartePage() {
           fecha_inicio: fechaFinalInicio,
           fecha_fin: fechaFinInput || null,
           porcentaje_avance: porcentajeInput,
+          estado_obra: estadoObraInput,
         },
       ]);
 
@@ -333,10 +344,9 @@ export default function NuevoPartePage() {
 
       alert('Parte publicado correctamente');
 
-      // Actualizar listado local de obras
       const actualizadas = misObras.map((o) =>
         o.obra_id === finalObraId
-          ? { ...o, fecha_fin: fechaFinInput, porcentaje_avance: porcentajeInput }
+          ? { ...o, fecha_fin: fechaFinInput, porcentaje_avance: porcentajeInput, estado_obra: estadoObraInput }
           : o
       );
 
@@ -347,6 +357,7 @@ export default function NuevoPartePage() {
           fecha_inicio: fechaFinalInicio,
           fecha_fin: fechaFinInput,
           porcentaje_avance: porcentajeInput,
+          estado_obra: estadoObraInput,
         });
       }
 
@@ -377,7 +388,7 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO CON AVANCE Y FECHA FIN ESTIMADA */}
+      {/* ENCABEZADO CON ESTADO DE LA OBRA */}
       <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -390,16 +401,15 @@ export default function NuevoPartePage() {
                 <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
                   {nombreTrabajador}
                 </span>
-                {obraSeleccionada?.fecha_inicio && (
-                  <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full">
-                    📅 Inicio: {new Date(obraSeleccionada.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </span>
-                )}
-                {obraSeleccionada?.fecha_fin && (
-                  <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold px-2.5 py-0.5 rounded-full">
-                    🏁 Fin Est.: {new Date(obraSeleccionada.fecha_fin).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </span>
-                )}
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                  estadoObraInput === 'Finalizada'
+                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                    : estadoObraInput === 'Pausada'
+                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                    : 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+                }`}>
+                  ● {estadoObraInput}
+                </span>
               </div>
               <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
             </div>
@@ -511,6 +521,7 @@ export default function NuevoPartePage() {
                 )}
               </div>
 
+              {/* FORMULARIO AÑADIR PRESUPUESTO / COMPROBANTE */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto o Extra</span>
                 <input
@@ -518,6 +529,13 @@ export default function NuevoPartePage() {
                   placeholder="Título (Ej: Presupuesto Base)"
                   value={nuevoTitulo}
                   onChange={(e) => setNuevoTitulo(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+                <input
+                  type="url"
+                  placeholder="URL de Factura/Recibo en PDF o Foto (Opcional)"
+                  value={comprobanteUrlInput}
+                  onChange={(e) => setComprobanteUrlInput(e.target.value)}
                   className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
                 />
                 <div className="flex items-center gap-2">
@@ -611,7 +629,7 @@ export default function NuevoPartePage() {
           )}
         </div>
 
-        {/* COLUMNA DERECHA: FORMULARIO PUBLICACIÓN CON PROGRESO Y FECHAS */}
+        {/* COLUMNA DERECHA: FORMULARIO */}
         <div className="lg:col-span-7">
           <form onSubmit={handleSubmit} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
             <div className="border-b border-slate-800 pb-3">
@@ -629,7 +647,9 @@ export default function NuevoPartePage() {
                 className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors"
               >
                 {misObras.map((obra) => (
-                  <option key={obra.obra_id} value={obra.obra_id}>{obra.nombre_obra}</option>
+                  <option key={obra.obra_id} value={obra.obra_id}>
+                    {obra.nombre_obra} ({obra.estado_obra || 'En Progreso'})
+                  </option>
                 ))}
                 <option value="nueva">+ Registrar nueva reforma...</option>
               </select>
@@ -646,10 +666,23 @@ export default function NuevoPartePage() {
               )}
             </div>
 
-            {/* PLANIFICACIÓN Y FECHAS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+            {/* ESTADO Y FECHAS DE LA OBRA */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Fecha de Inicio</label>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Estado Obra</label>
+                <select
+                  value={estadoObraInput}
+                  onChange={(e) => setEstadoObraInput(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="En Progreso">En Progreso</option>
+                  <option value="Pausada">Pausada</option>
+                  <option value="Finalizada">Finalizada / Archivada</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Fecha Inicio</label>
                 <input
                   type="date"
                   value={fechaInicioInput}
@@ -659,7 +692,7 @@ export default function NuevoPartePage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Fecha Estimada de Fin</label>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Fecha Fin Est.</label>
                 <input
                   type="date"
                   value={fechaFinInput}
@@ -669,10 +702,10 @@ export default function NuevoPartePage() {
               </div>
             </div>
 
-            {/* CONTROL DEL PORCENTAJE DE AVANCE */}
+            {/* CONTROL DE PORCENTAJE */}
             <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <label className="font-bold text-emerald-400 uppercase text-[11px]">Porcentaje de Avance de la Reforma</label>
+                <label className="font-bold text-emerald-400 uppercase text-[11px]">Porcentaje de Avance</label>
                 <span className="font-extrabold text-emerald-400 text-sm font-mono">{porcentajeInput}%</span>
               </div>
               <input
