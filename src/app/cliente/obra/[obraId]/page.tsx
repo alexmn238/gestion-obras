@@ -51,41 +51,42 @@ export default function ClienteObraPage() {
   const [mensajeNotificar, setMensajeNotificar] = useState('');
   const [enviandoPago, setEnviandoPago] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     if (!obra_id) return;
 
     async function cargarTodo() {
-      // Cargar partes
-      const { data: dataLogs } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('obra_id', obra_id)
-        .order('created_at', { ascending: false });
+      try {
+        // Ejecutamos las tres consultas a la vez (en paralelo) para que cargue mucho más rápido
+        const [resLogs, resComments, resBudgets] = await Promise.all([
+          supabase
+            .from('daily_logs')
+            .select('*')
+            .eq('obra_id', obra_id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('comments')
+            .select('*')
+            .eq('obra_id', obra_id)
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('budgets')
+            .select('*')
+            .eq('obra_id', obra_id)
+            .order('created_at', { ascending: true }),
+        ]);
 
-      if (dataLogs) setLogs(dataLogs);
-
-      // Cargar comentarios
-      const { data: dataComments } = await supabase
-        .from('comments')
-        .select('*')
-        .eq('obra_id', obra_id)
-        .order('created_at', { ascending: true });
-
-      if (dataComments) setComentarios(dataComments);
-
-      // Cargar presupuestos
-      const { data: dataBudgets } = await supabase
-        .from('budgets')
-        .select('*')
-        .eq('obra_id', obra_id)
-        .order('created_at', { ascending: true });
-
-      if (dataBudgets) {
-        setBudgets(dataBudgets);
-        if (dataBudgets.length > 0) setBudgetIdNotificar(dataBudgets[0].id);
+        if (resLogs.data) setLogs(resLogs.data);
+        if (resComments.data) setComentarios(resComments.data);
+        if (resBudgets.data) {
+          setBudgets(resBudgets.data);
+          if (resBudgets.data.length > 0) setBudgetIdNotificar(resBudgets.data[0].id);
+        }
+      } catch (error) {
+        console.error('Error al cargar la obra:', error);
+      } finally {
+        // Desactiva la pantalla de carga sí o sí, incluso si falla alguna petición
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     cargarTodo();
