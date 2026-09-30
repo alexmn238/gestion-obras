@@ -28,6 +28,14 @@ interface Budget {
   es_extra: boolean;
 }
 
+interface PaymentLog {
+  id: string;
+  monto: number;
+  concepto: string;
+  registrado_por: string;
+  created_at: string;
+}
+
 export default function NuevoPartePage() {
   const router = useRouter();
 
@@ -42,10 +50,11 @@ export default function NuevoPartePage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
-  // Comentarios y presupuestos
   const [comentarios, setComentarios] = useState<Comment[]>([]);
   const [nuevoComentarioTrabajador, setNuevoComentarioTrabajador] = useState('');
+
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [nuevoTotal, setNuevoTotal] = useState('');
   const [esExtra, setEsExtra] = useState(false);
@@ -95,6 +104,7 @@ export default function NuevoPartePage() {
     if (!selectedObraId || selectedObraId === 'nueva') {
       setComentarios([]);
       setBudgets([]);
+      setPaymentLogs([]);
       return;
     }
 
@@ -114,6 +124,14 @@ export default function NuevoPartePage() {
         .order('created_at', { ascending: true });
 
       if (dataBudgets) setBudgets(dataBudgets);
+
+      const { data: dataPayments } = await supabase
+        .from('payment_logs')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: false });
+
+      if (dataPayments) setPaymentLogs(dataPayments);
     }
 
     cargarDatosObra();
@@ -135,13 +153,15 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  // Aprobar la notificación de pago enviada por el cliente
+  // Aprobar pago notificado e insertarlo en el historial de pagos
   const handleAprobarNotificacionPago = async (budget: Budget) => {
     if (!budget.notificacion_pago) return;
 
-    const nuevoTotalPagado = Number(budget.monto_pagado) + Number(budget.notificacion_pago);
+    const montoAprobado = Number(budget.notificacion_pago);
+    const nuevoTotalPagado = Number(budget.monto_pagado) + montoAprobado;
 
-    const { error } = await supabase
+    // 1. Actualizar el monto acumulado del presupuesto
+    const { error: err1 } = await supabase
       .from('budgets')
       .update({
         monto_pagado: nuevoTotalPagado,
@@ -150,13 +170,31 @@ export default function NuevoPartePage() {
       })
       .eq('id', budget.id);
 
-    if (!error) {
-      alert('Pago verificado y registrado en el balance.');
-      const { data } = await supabase.from('budgets').select('*').eq('obra_id', selectedObraId);
-      if (data) setBudgets(data);
+    // 2. Registrar en el historial de pagos (payment_logs)
+    const { error: err2 } = await supabase.from('payment_logs').insert([
+      {
+        obra_id: selectedObraId,
+        budget_id: budget.id,
+        monto: montoAprobado,
+        concepto: budget.mensaje_pago || `Pago a ${budget.titulo}`,
+        registrado_por: 'Cliente (Verificado por Empresa)',
+      },
+    ]);
+
+    if (!err1 && !err2) {
+      alert('Pago verificado y guardado en el historial de cobros.');
+      recargarPagosYPresupuestos();
     } else {
-      alert('Error al aprobar el pago: ' + error.message);
+      alert('Error al aprobar el pago.');
     }
+  };
+
+  const recargarPagosYPresupuestos = async () => {
+    const { data: bData } = await supabase.from('budgets').select('*').eq('obra_id', selectedObraId);
+    if (bData) setBudgets(bData);
+
+    const { data: pData } = await supabase.from('payment_logs').select('*').eq('obra_id', selectedObraId).order('created_at', { ascending: false });
+    if (pData) setPaymentLogs(pData);
   };
 
   const handleCrearPresupuesto = async () => {
@@ -176,8 +214,7 @@ export default function NuevoPartePage() {
       setNuevoTitulo('');
       setNuevoTotal('');
       setEsExtra(false);
-      const { data } = await supabase.from('budgets').select('*').eq('obra_id', selectedObraId);
-      if (data) setBudgets(data);
+      recargarPagosYPresupuestos();
     }
   };
 
@@ -294,7 +331,7 @@ export default function NuevoPartePage() {
         </div>
       )}
 
-      {/* GESTIÓN DE PRESUPUESTOS Y CONFIRMACIÓN DE PAGOS */}
+      {/* PRESUPUESTOS Y REGISTRO DE COBROS */}
       {selectedObraId && selectedObraId !== 'nueva' && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
           <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
@@ -314,7 +351,6 @@ export default function NuevoPartePage() {
                   <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
                 </div>
 
-                {/* ALERTA DE PAGO NOTIFICADO POR EL CLIENTE */}
                 {b.notificacion_pago && b.notificacion_pago > 0 && (
                   <div className="bg-amber-950/60 border border-amber-500/50 p-2.5 rounded text-xs space-y-2">
                     <p className="text-amber-300 font-semibold">
@@ -325,12 +361,32 @@ export default function NuevoPartePage() {
                       onClick={() => handleAprobarNotificacionPago(b)}
                       className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded transition-colors text-xs"
                     >
-                      ✓ Aprobar y Registrar Pago
+                      ✓ Aprobar y Registrar en el Historial
                     </button>
                   </div>
                 )}
               </div>
             ))}
+          </div>
+
+          {/* HISTORIAL VISIBLE DE PAGOS */}
+          <div className="pt-3 border-t border-slate-700 space-y-2">
+            <h4 className="text-[11px] font-semibold text-emerald-400 uppercase">📜 Historial de Cobros Recibidos</h4>
+            {paymentLogs.length === 0 ? (
+              <p className="text-[11px] text-slate-400 italic">No hay historial registrado.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                {paymentLogs.map((p) => (
+                  <div key={p.id} className="bg-slate-900 p-2 rounded border border-slate-800 text-[11px] flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-emerald-400">+{Number(p.monto).toFixed(2)} €</span>
+                      <p className="text-[10px] text-slate-400">{p.concepto}</p>
+                    </div>
+                    <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString('es-ES')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-slate-700 space-y-2">

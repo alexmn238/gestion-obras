@@ -33,6 +33,14 @@ interface Budget {
   es_extra: boolean;
 }
 
+interface PaymentLog {
+  id: string;
+  monto: number;
+  concepto: string;
+  registrado_por: string;
+  created_at: string;
+}
+
 export default function ObraClientePage() {
   const params = useParams();
   const obraId = (params?.obraId || params?.id) as string;
@@ -40,9 +48,9 @@ export default function ObraClientePage() {
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados para comentarios
   const [nuevoComentarioGen, setNuevoComentarioGen] = useState('');
   const [comentariosParte, setComentariosParte] = useState<{ [logId: string]: string }>({});
 
@@ -72,13 +80,19 @@ export default function ObraClientePage() {
       .eq('obra_id', obraId)
       .order('created_at', { ascending: true });
 
+    const { data: paymentsData } = await supabase
+      .from('payment_logs')
+      .select('*')
+      .eq('obra_id', obraId)
+      .order('created_at', { ascending: false });
+
     setLogs(logsData || []);
     setComments(commentsData || []);
     setBudgets(budgetsData || []);
+    setPaymentLogs(paymentsData || []);
     setLoading(false);
   }
 
-  // Notificar entrega de dinero por parte del cliente
   const notificarEntrega = async (budgetId: string) => {
     const monto = prompt('Indica la cantidad exacta que has entregado (€):');
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) return;
@@ -94,7 +108,7 @@ export default function ObraClientePage() {
       .eq('id', budgetId);
 
     if (!error) {
-      alert('Se ha enviado la notificación de pago al equipo. Pendiente de verificación.');
+      alert('Se ha enviado la notificación de pago. Pendiente de confirmación por la empresa.');
       cargarDatos();
     } else {
       alert('Error al enviar la notificación: ' + error.message);
@@ -170,10 +184,9 @@ export default function ObraClientePage() {
                 <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
               </div>
 
-              {/* Notificación activa en revisión */}
               {b.notificacion_pago && b.notificacion_pago > 0 ? (
                 <div className="bg-amber-950/40 border border-amber-800/50 p-2 rounded text-[11px] text-amber-300">
-                  ⏳ <strong>Pago notificado:</strong> {Number(b.notificacion_pago).toFixed(2)} € ({b.mensaje_pago}) - <em>Pendiente de confirmación por la empresa</em>.
+                  ⏳ <strong>Pago notificado:</strong> {Number(b.notificacion_pago).toFixed(2)} € ({b.mensaje_pago}) - <em>Pendiente de aprobación</em>.
                 </div>
               ) : (
                 <button
@@ -186,9 +199,31 @@ export default function ObraClientePage() {
             </div>
           ))}
         </div>
+
+        {/* REGISTRO / HISTORIAL DE PAGOS REALIZADOS */}
+        <div className="pt-3 border-t border-slate-700 space-y-2">
+          <h3 className="text-xs font-semibold text-emerald-400 uppercase">📜 Historial de Pagos Confirmados</h3>
+          {paymentLogs.length === 0 ? (
+            <p className="text-xs text-slate-500 italic">No hay historial de pagos registrados aún.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              {paymentLogs.map((p) => (
+                <div key={p.id} className="flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-800 text-[11px]">
+                  <div>
+                    <span className="text-emerald-400 font-bold">+{Number(p.monto).toFixed(2)} €</span>
+                    <span className="text-slate-400 ml-2">({p.concepto || 'Abono'})</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">
+                    {new Date(p.created_at).toLocaleDateString('es-ES')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* HISTORIAL DE PARTES */}
+      {/* PARTES DE OBRA */}
       <div className="space-y-6">
         {logs.map((log) => {
           const comentariosDelParte = comments.filter((c) => c.daily_log_id === log.id);
@@ -214,7 +249,6 @@ export default function ObraClientePage() {
                 </div>
               )}
 
-              {/* COMENTARIOS */}
               <div className="bg-slate-900/60 rounded-lg p-3 space-y-3 mt-4 border border-slate-700/50">
                 <h3 className="text-xs font-semibold text-slate-400">Comentarios en {log.room_name}:</h3>
                 {comentariosDelParte.map((c) => (
