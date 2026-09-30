@@ -55,7 +55,7 @@ export default function ClienteObraPage() {
   // Clima
   const [climaInfo, setClimaInfo] = useState<{ temp: number; estado: string } | null>(null);
 
-  // Visor Lightbox Modal de Fotos
+  // Modal Visor Fotos
   const [fotoModalUrl, setFotoModalUrl] = useState<string | null>(null);
 
   const [budgetIdNotificar, setBudgetIdNotificar] = useState<string>('');
@@ -170,6 +170,23 @@ export default function ClienteObraPage() {
     }
   };
 
+  const calcularDiasRestantes = (fechaFinStr?: string) => {
+    if (!fechaFinStr) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fin = new Date(fechaFinStr);
+    fin.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diff > 0) {
+      return { texto: `⏳ Faltan ${diff} día(s)`, tipo: 'normal' };
+    } else if (diff === 0) {
+      return { texto: '🎯 Finaliza hoy', tipo: 'hoy' };
+    } else {
+      return { texto: `⚠️ ${Math.abs(diff)} día(s) de retraso`, tipo: 'retraso' };
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center">
@@ -189,6 +206,8 @@ export default function ClienteObraPage() {
   const estadoObra = logUltimo?.estado_obra || 'En Progreso';
   const fasesObra = logUltimo?.fases || [];
 
+  const diasInfo = calcularDiasRestantes(fechaFinObra || undefined);
+
   const fotosAntes = logs.filter((l) => l.es_antes).flatMap((l) => l.photos_urls);
   const fotosDespues = logs.filter((l) => !l.es_antes).flatMap((l) => l.photos_urls);
 
@@ -203,10 +222,10 @@ export default function ClienteObraPage() {
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 print:bg-white print:text-black print:p-0">
       
       {/* CABECERA */}
-      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4 print:border-none print:shadow-none print:p-0">
+      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4 print:border-none print:shadow-none print:p-0 print:bg-transparent">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2 print:hidden">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
                 🏗️ {nombreEmpresa}
               </span>
@@ -238,9 +257,19 @@ export default function ClienteObraPage() {
                   🏁 Fin Est.: {new Date(fechaFinObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </span>
               )}
+
+              {diasInfo && (
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                  diasInfo.tipo === 'retraso'
+                    ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                    : 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
+                }`}>
+                  {diasInfo.texto}
+                </span>
+              )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight capitalize print:text-black">{nombreObraHeader}</h1>
-            <p className="text-xs text-slate-400 mt-1 print:text-slate-600">Avances diarios, estado financiero y comunicación directa</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight capitalize print:text-black print:text-2xl">{nombreObraHeader}</h1>
+            <p className="text-xs text-slate-400 mt-1 print:text-slate-700">Informe General Y Bitácora De Avances</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-end gap-3">
@@ -252,20 +281,20 @@ export default function ClienteObraPage() {
             </button>
 
             {budgets.length > 0 && (
-              <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl print:bg-slate-100 print:border-slate-300">
+              <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl print:bg-slate-50 print:border-slate-400 print:text-black">
                 <div className="text-center px-2">
-                  <span className="block text-[10px] text-slate-400 font-bold uppercase print:text-slate-600">Total</span>
+                  <span className="block text-[10px] text-slate-400 font-bold uppercase print:text-slate-800">Total</span>
                   <span className="text-sm font-bold text-white font-mono print:text-black">{totalPresupuestado.toFixed(2)} €</span>
                 </div>
                 <div className="border-r border-slate-800 print:border-slate-300"></div>
                 <div className="text-center px-2">
-                  <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
-                  <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
+                  <span className="block text-[10px] text-emerald-400 font-bold uppercase print:text-emerald-800">Pagado</span>
+                  <span className="text-sm font-bold text-emerald-400 font-mono print:text-emerald-800">{totalPagado.toFixed(2)} €</span>
                 </div>
                 <div className="border-r border-slate-800 print:border-slate-300"></div>
                 <div className="text-center px-2">
-                  <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
-                  <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
+                  <span className="block text-[10px] text-rose-400 font-bold uppercase print:text-rose-800">Pendiente</span>
+                  <span className="text-sm font-bold text-rose-400 font-mono print:text-rose-800">{totalPendiente.toFixed(2)} €</span>
                 </div>
               </div>
             )}
@@ -273,14 +302,14 @@ export default function ClienteObraPage() {
         </div>
 
         {/* PROGRESO */}
-        <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2 print:bg-slate-100 print:border-slate-300">
+        <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2 print:bg-slate-50 print:border-slate-400">
           <div className="flex justify-between items-center text-xs">
             <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] print:text-black">Avance Global De La Obra</span>
-            <span className="font-extrabold text-emerald-400 font-mono text-sm">{porcentajeAvance}% Completado</span>
+            <span className="font-extrabold text-emerald-400 font-mono text-sm print:text-emerald-800">{porcentajeAvance}% Completado</span>
           </div>
-          <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+          <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50 print:bg-slate-300">
             <div
-              className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-700"
+              className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-700 print:bg-emerald-600"
               style={{ width: `${porcentajeAvance}%` }}
             ></div>
           </div>
@@ -289,8 +318,8 @@ export default function ClienteObraPage() {
 
       {/* FASES */}
       {fasesObra.length > 0 && (
-        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
-          <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3 print:bg-white print:border-slate-300">
+          <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2 print:text-slate-900">
             📋 Fases Y Planificación De La Reforma
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -299,8 +328,8 @@ export default function ClienteObraPage() {
                 key={fase.id}
                 className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2.5 ${
                   fase.completada
-                    ? 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300'
-                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                    ? 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300 print:bg-emerald-50 print:border-emerald-300 print:text-emerald-900'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 print:bg-slate-100 print:border-slate-300 print:text-slate-700'
                 }`}
               >
                 <span>{fase.completada ? '✅' : '⏳'}</span>
@@ -313,19 +342,19 @@ export default function ClienteObraPage() {
 
       {/* ANTES Y DESPUÉS */}
       {fotosAntes.length > 0 && (
-        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-4">
-          <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-4 print:bg-white print:border-slate-300">
+          <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 print:text-slate-900">
             🔄 Transformación De La Obra (Antes Y Después)
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block">📷 Estado Inicial (Antes)</span>
+              <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block print:text-rose-700">📷 Estado Inicial (Antes)</span>
               <div className="grid grid-cols-2 gap-2">
                 {fotosAntes.map((url, idx) => (
                   <button
                     key={idx}
                     onClick={() => setFotoModalUrl(url)}
-                    className="block aspect-square rounded-xl overflow-hidden border border-slate-800 group relative"
+                    className="block aspect-square rounded-xl overflow-hidden border border-slate-800 group relative print:border-slate-300"
                   >
                     <img src={url} alt={`Antes ${idx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                   </button>
@@ -333,13 +362,13 @@ export default function ClienteObraPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">✨ Avances Actuales (Después)</span>
+              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block print:text-emerald-700">✨ Avances Actuales (Después)</span>
               <div className="grid grid-cols-2 gap-2">
                 {fotosDespues.slice(0, 4).map((url, idx) => (
                   <button
                     key={idx}
                     onClick={() => setFotoModalUrl(url)}
-                    className="block aspect-square rounded-xl overflow-hidden border border-slate-800 group relative"
+                    className="block aspect-square rounded-xl overflow-hidden border border-slate-800 group relative print:border-slate-300"
                   >
                     <img src={url} alt={`Después ${idx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                   </button>
@@ -353,34 +382,34 @@ export default function ClienteObraPage() {
       {/* PRESUPUESTOS Y FACTURAS DESCARGABLES */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
-            <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+          <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3 print:col-span-12 print:bg-white print:border-slate-300">
+            <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2 print:text-slate-900">
               💳 Estado De Presupuestos Y Pagos
             </h2>
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1 print:max-h-none">
               {budgets.map((b) => (
-                <div key={b.id} className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <div key={b.id} className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs print:bg-slate-50 print:border-slate-300 print:text-black">
                   <div>
-                    <span className="font-semibold text-white block capitalize">
-                      {b.titulo} {b.es_extra && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
+                    <span className="font-semibold text-white block capitalize print:text-black">
+                      {b.titulo} {b.es_extra && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1 print:text-amber-800">EXTRA</span>}
                     </span>
-                    <div className="flex items-center gap-2 text-[10px] text-emerald-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[10px] text-emerald-400 mt-0.5 print:text-emerald-800">
                       <span>Pagado: {Number(b.monto_pagado).toFixed(2)} €</span>
                       {b.comprobante_url && (
                         <a
                           href={b.comprobante_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-blue-400 underline font-bold hover:text-blue-300"
+                          className="text-blue-400 underline font-bold hover:text-blue-300 print:text-blue-800"
                         >
-                          📄 Descargar Factura / Recibo
+                          📄 Factura / Recibo
                         </a>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="font-mono font-bold text-white block">{Number(b.monto_total).toFixed(2)} €</span>
-                    <span className="text-[10px] text-rose-400">Pendiente: {(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</span>
+                    <span className="font-mono font-bold text-white block print:text-black">{Number(b.monto_total).toFixed(2)} €</span>
+                    <span className="text-[10px] text-rose-400 print:text-rose-800">Pendiente: {(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</span>
                   </div>
                 </div>
               ))}
@@ -429,10 +458,10 @@ export default function ClienteObraPage() {
         </section>
       )}
 
-      {/* BITÁCORA CON MODAL LIGHTBOX */}
+      {/* BITÁCORA */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2 print:border-slate-300">
+          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 print:text-black">
             📸 Avances Diarios De La Obra ({logsFiltrados.length})
           </h2>
 
@@ -462,24 +491,24 @@ export default function ClienteObraPage() {
         </div>
 
         {logsFiltrados.length === 0 ? (
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-xs">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-xs print:border-slate-300 print:text-slate-600">
             No se han encontrado registros para la estancia seleccionada.
           </div>
         ) : (
           <div className="space-y-6">
             {logsFiltrados.map((log) => (
-              <article key={log.id} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <article key={log.id} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md print:bg-white print:border-slate-300 print:shadow-none">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3 print:border-slate-200">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">🛠️</span>
-                    <h3 className="font-bold text-sm text-white capitalize">{log.room_name}</h3>
+                    <h3 className="font-bold text-sm text-white capitalize print:text-black">{log.room_name}</h3>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-mono">
+                  <span className="text-[11px] text-slate-400 font-mono print:text-slate-700">
                     {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{log.description}</p>
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line print:text-black">{log.description}</p>
 
                 {log.photos_urls && log.photos_urls.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
@@ -487,16 +516,13 @@ export default function ClienteObraPage() {
                       <button
                         key={idx}
                         onClick={() => setFotoModalUrl(url)}
-                        className="group relative aspect-square rounded-xl overflow-hidden border border-slate-800 bg-slate-950 block text-left"
+                        className="group relative aspect-square rounded-xl overflow-hidden border border-slate-800 bg-slate-950 block text-left print:border-slate-300"
                       >
                         <img
                           src={url}
                           alt={`Avance ${idx}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
-                          🔍 Ampliar
-                        </div>
                       </button>
                     ))}
                   </div>
@@ -507,11 +533,11 @@ export default function ClienteObraPage() {
         )}
       </section>
 
-      {/* MODAL VISOR LIGHTBOX A PANTALLA COMPLETA */}
+      {/* VISOR LIGHTBOX */}
       {fotoModalUrl && (
         <div
           onClick={() => setFotoModalUrl(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out print:hidden"
         >
           <div className="relative max-w-4xl w-full max-h-[90vh] flex items-center justify-center">
             <img

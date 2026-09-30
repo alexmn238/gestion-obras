@@ -63,6 +63,9 @@ export default function NuevoPartePage() {
   const [esAntesInput, setEsAntesInput] = useState(false);
   const [climaInfo, setClimaInfo] = useState<{ temp: number; estado: string } | null>(null);
 
+  // Modal QR
+  const [mostrarQR, setMostrarQR] = useState(false);
+
   const [fases, setFases] = useState<Fase[]>([
     { id: '1', titulo: 'Demolición y Desescombro', completada: false },
     { id: '2', titulo: 'Electricidad y Fontanería', completada: false },
@@ -217,6 +220,10 @@ export default function NuevoPartePage() {
     ? `${window.location.origin}/cliente/obra/${selectedObraId}`
     : '';
 
+  const qrApiUrl = clienteUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(clienteUrl)}`
+    : '';
+
   const copiarEnlaceCliente = () => {
     if (!clienteUrl) return;
     navigator.clipboard.writeText(clienteUrl);
@@ -225,6 +232,25 @@ export default function NuevoPartePage() {
   };
 
   const obraSeleccionada = misObras.find((o) => o.obra_id === selectedObraId);
+
+  const calcularDiasRestantes = (fechaFinStr?: string) => {
+    if (!fechaFinStr) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fin = new Date(fechaFinStr);
+    fin.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diff > 0) {
+      return { texto: `⏳ Restan ${diff} día(s)`, tipo: 'normal' };
+    } else if (diff === 0) {
+      return { texto: '🎯 Termina hoy', tipo: 'hoy' };
+    } else {
+      return { texto: `⚠️ ${Math.abs(diff)} día(s) de atraso`, tipo: 'retraso' };
+    }
+  };
+
+  const diasInfo = calcularDiasRestantes(fechaFinInput || obraSeleccionada?.fecha_fin);
 
   const handleAprobarNotificacionPago = async (budget: Budget) => {
     if (!budget.notificacion_pago) return;
@@ -265,7 +291,6 @@ export default function NuevoPartePage() {
     if (pData) setPaymentLogs(pData);
   };
 
-  // Subir Factura / Recibo directo
   const handleCrearPresupuesto = async () => {
     if (!nuevoTitulo.trim() || !nuevoTotal || !selectedObraId || selectedObraId === 'nueva') return;
 
@@ -453,9 +478,9 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* CABECERA */}
+      {/* CABECERA CON SELECTOR GLOBAL DE OBRA */}
       <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
               👷
@@ -466,31 +491,52 @@ export default function NuevoPartePage() {
                 <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
                   {nombreTrabajador}
                 </span>
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                  estadoObraInput === 'Finalizada'
-                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                    : estadoObraInput === 'Pausada'
-                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                    : 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
-                }`}>
-                  ● {estadoObraInput}
-                </span>
 
                 {climaInfo && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs font-bold">
                     {climaInfo.estado} ({climaInfo.temp}°C)
                   </span>
                 )}
+
+                {diasInfo && (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    diasInfo.tipo === 'retraso'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                  }`}>
+                    {diasInfo.texto}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
+              <p className="text-xs text-slate-400 mt-0.5">Control de obras, finanzas y reportes en tiempo real</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="self-start sm:self-auto px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold transition-all shadow-sm"
-          >
-            🚪 Cerrar Sesión
-          </button>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {/* SELECTOR GLOBAL DE OBRA */}
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-1.5 px-3 rounded-xl">
+              <span className="text-xs font-bold text-slate-400 shrink-0">Obra Activa:</span>
+              <select
+                value={selectedObraId}
+                onChange={(e) => setSelectedObraId(e.target.value)}
+                className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer capitalize"
+              >
+                {misObras.map((obra) => (
+                  <option key={obra.obra_id} value={obra.obra_id} className="bg-slate-900 text-white">
+                    {obra.nombre_obra}
+                  </option>
+                ))}
+                <option value="nueva" className="bg-slate-900 text-emerald-400">+ Registrar Nueva Reforma...</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold transition-all shadow-sm"
+            >
+              🚪 Cerrar Sesión
+            </button>
+          </div>
         </div>
 
         {/* BARRA DE PROGRESO */}
@@ -510,7 +556,7 @@ export default function NuevoPartePage() {
         )}
       </header>
 
-      {/* ENLACE PRIVADO CLIENTE */}
+      {/* ENLACE PRIVADO CLIENTE Y BOTÓN QR */}
       {clienteUrl && (
         <section className="bg-gradient-to-r from-blue-950/40 via-slate-900/80 to-slate-900/80 border border-blue-500/30 rounded-2xl p-4 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -522,13 +568,43 @@ export default function NuevoPartePage() {
               <p className="text-xs text-slate-300 font-mono truncate">{clienteUrl}</p>
             </div>
           </div>
-          <button
-            onClick={copiarEnlaceCliente}
-            className="w-full md:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 shrink-0"
-          >
-            {copiado ? '✓ ¡Enlace Copiado!' : 'Copiar Enlace'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMostrarQR(true)}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
+            >
+              📱 Ver Código QR
+            </button>
+            <button
+              onClick={copiarEnlaceCliente}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 shrink-0"
+            >
+              {copiado ? '✓ ¡Enlace Copiado!' : 'Copiar Enlace'}
+            </button>
+          </div>
         </section>
+      )}
+
+      {/* MODAL CÓDIGO QR */}
+      {mostrarQR && (
+        <div
+          onClick={() => setMostrarQR(false)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl text-center space-y-4 max-w-xs w-full shadow-2xl">
+            <h3 className="text-sm font-bold text-white">Escanea El Enlace De La Reforma</h3>
+            <div className="p-3 bg-white rounded-xl inline-block shadow-inner">
+              <img src={qrApiUrl} alt="Código QR Obra" className="w-48 h-48 mx-auto" />
+            </div>
+            <p className="text-[11px] text-slate-400">El cliente puede escanear este código directamente desde su móvil.</p>
+            <button
+              onClick={() => setMostrarQR(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
       )}
 
       {/* GRILLA PRINCIPAL */}
@@ -715,32 +791,19 @@ export default function NuevoPartePage() {
               <p className="text-xs text-slate-400 mt-0.5">Sube los partes fotográficos para mantener actualizado al cliente</p>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">1. Seleccionar Faena / Obra</label>
-              <select
-                value={selectedObraId}
-                onChange={(e) => setSelectedObraId(e.target.value)}
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors capitalize"
-              >
-                {misObras.map((obra) => (
-                  <option key={obra.obra_id} value={obra.obra_id}>
-                    {obra.nombre_obra} ({obra.estado_obra || 'En Progreso'})
-                  </option>
-                ))}
-                <option value="nueva">+ Registrar nueva reforma...</option>
-              </select>
-
-              {selectedObraId === 'nueva' && (
+            {selectedObraId === 'nueva' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">Nombre De La Nueva Reforma</label>
                 <input
                   type="text"
                   required
                   placeholder="Nombre de la reforma (ej. Reforma Cocina Don Mateo)"
                   value={nuevaObraNombre}
                   onChange={(e) => setNuevaObraNombre(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white mt-2 text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 transition-colors"
                 />
-              )}
-            </div>
+              </div>
+            )}
 
             {/* ESTADO Y FECHAS */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
