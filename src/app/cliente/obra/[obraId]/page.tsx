@@ -15,6 +15,9 @@ interface Log {
   fecha_fin?: string;
   porcentaje_avance?: number;
   estado_obra?: string;
+  ciudad?: string;
+  fases?: { id: string; titulo: string; completada: boolean }[];
+  es_antes?: boolean;
   created_at: string;
 }
 
@@ -49,6 +52,9 @@ export default function ClienteObraPage() {
   const [autorNombre, setAutorNombre] = useState('Cliente');
   const [estanciaFiltro, setEstanciaFiltro] = useState<string>('Todas');
 
+  // Estado del Clima
+  const [climaInfo, setClimaInfo] = useState<{ temp: number; estado: string } | null>(null);
+
   const [budgetIdNotificar, setBudgetIdNotificar] = useState<string>('');
   const [montoNotificar, setMontoNotificar] = useState('');
   const [mensajeNotificar, setMensajeNotificar] = useState('');
@@ -79,7 +85,11 @@ export default function ClienteObraPage() {
             .order('created_at', { ascending: true }),
         ]);
 
-        if (resLogs.data) setLogs(resLogs.data);
+        if (resLogs.data) {
+          setLogs(resLogs.data);
+          const ciudad = resLogs.data[0]?.ciudad || 'Valencia';
+          obtenerClima(ciudad);
+        }
         if (resComments.data) setComentarios(resComments.data);
         if (resBudgets.data) {
           setBudgets(resBudgets.data);
@@ -94,6 +104,22 @@ export default function ClienteObraPage() {
 
     cargarTodo();
   }, [obra_id]);
+
+  const obtenerClima = async (ciudadNombre: string) => {
+    try {
+      // Coordenadas aproximadas por defecto (Valencia / España)
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.47&longitude=-0.37&current_weather=true');
+      const data = await res.json();
+      if (data.current_weather) {
+        setClimaInfo({
+          temp: Math.round(data.current_weather.temperature),
+          estado: data.current_weather.weathercode <= 3 ? '☀️ Despejado' : '🌧️ Lluvia / Nublado',
+        });
+      }
+    } catch (e) {
+      console.error('Error obteniendo el clima:', e);
+    }
+  };
 
   const handleEnviarComentario = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,10 +169,6 @@ export default function ClienteObraPage() {
     }
   };
 
-  const handleImprimirInforme = () => {
-    window.print();
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center">
@@ -164,12 +186,14 @@ export default function ClienteObraPage() {
   const fechaFinObra = logUltimo?.fecha_fin || null;
   const porcentajeAvance = logUltimo?.porcentaje_avance || 0;
   const estadoObra = logUltimo?.estado_obra || 'En Progreso';
+  const fasesObra = logUltimo?.fases || [];
+
+  // Agrupar fotos "Antes" y fotos "Después"
+  const fotosAntes = logs.filter((l) => l.es_antes).flatMap((l) => l.photos_urls);
+  const fotosDespues = logs.filter((l) => !l.es_antes).flatMap((l) => l.photos_urls);
 
   const estanciasUnicas = Array.from(new Set(logs.map((l) => l.room_name)));
-
-  const logsFiltrados = estanciaFiltro === 'Todas'
-    ? logs
-    : logs.filter((l) => l.room_name === estanciaFiltro);
+  const logsFiltrados = estanciaFiltro === 'Todas' ? logs : logs.filter((l) => l.room_name === estanciaFiltro);
 
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
@@ -178,7 +202,7 @@ export default function ClienteObraPage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 print:bg-white print:text-black print:p-0">
       
-      {/* CABECERA PRINCIPAL */}
+      {/* CABECERA PRINCIPAL CON CLIMA */}
       <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4 print:border-none print:shadow-none print:p-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -196,6 +220,13 @@ export default function ClienteObraPage() {
               }`}>
                 ● {estadoObra}
               </span>
+
+              {/* WIDGET DE CLIMA EN VIVO */}
+              {climaInfo && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs font-bold">
+                  {climaInfo.estado} ({climaInfo.temp}°C)
+                </span>
+              )}
 
               {fechaInicioObra && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
@@ -215,7 +246,7 @@ export default function ClienteObraPage() {
 
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <button
-              onClick={handleImprimirInforme}
+              onClick={() => window.print()}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all print:hidden shadow-sm"
             >
               📄 Descargar Informe PDF
@@ -242,7 +273,7 @@ export default function ClienteObraPage() {
           </div>
         </div>
 
-        {/* BARRA DE PROGRESO */}
+        {/* BARRA DE PROGRESO DE LA OBRA */}
         <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2 print:bg-slate-100 print:border-slate-300">
           <div className="flex justify-between items-center text-xs">
             <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] print:text-black">Avance Global De La Obra</span>
@@ -256,6 +287,61 @@ export default function ClienteObraPage() {
           </div>
         </div>
       </header>
+
+      {/* CHECKLIST DE FASES / HITOS COMPLETADOS */}
+      {fasesObra.length > 0 && (
+        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
+          <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+            📋 Fases Y Planificación De La Reforma
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+            {fasesObra.map((fase) => (
+              <div
+                key={fase.id}
+                className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2.5 ${
+                  fase.completada
+                    ? 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}
+              >
+                <span>{fase.completada ? '✅' : '⏳'}</span>
+                <span className="capitalize">{fase.titulo}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* COMPARATIVA VISUAL "ANTES Y DESPUÉS" */}
+      {fotosAntes.length > 0 && (
+        <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-4">
+          <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+            🔄 Transformación De La Obra (Antes Y Después)
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block">📷 Estado Inicial (Antes)</span>
+              <div className="grid grid-cols-2 gap-2">
+                {fotosAntes.map((url, idx) => (
+                  <a key={idx} href={url} target="_blank" rel="noreferrer" className="block aspect-square rounded-xl overflow-hidden border border-slate-800">
+                    <img src={url} alt={`Antes ${idx}`} className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">✨ Avances Actuales (Después)</span>
+              <div className="grid grid-cols-2 gap-2">
+                {fotosDespues.slice(0, 4).map((url, idx) => (
+                  <a key={idx} href={url} target="_blank" rel="noreferrer" className="block aspect-square rounded-xl overflow-hidden border border-slate-800">
+                    <img src={url} alt={`Después ${idx}`} className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* PRESUPUESTOS Y COMPROBANTES */}
       {budgets.length > 0 && (

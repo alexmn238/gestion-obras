@@ -41,6 +41,12 @@ interface PaymentLog {
   created_at: string;
 }
 
+interface Fase {
+  id: string;
+  titulo: string;
+  completada: boolean;
+}
+
 export default function NuevoPartePage() {
   const router = useRouter();
 
@@ -53,6 +59,16 @@ export default function NuevoPartePage() {
   const [fechaFinInput, setFechaFinInput] = useState('');
   const [porcentajeInput, setPorcentajeInput] = useState(0);
   const [estadoObraInput, setEstadoObraInput] = useState('En Progreso');
+
+  const [esAntesInput, setEsAntesInput] = useState(false);
+
+  // Fases por defecto de una reforma
+  const [fases, setFases] = useState<Fase[]>([
+    { id: '1', titulo: 'Demolición y Desescombro', completada: false },
+    { id: '2', titulo: 'Electricidad y Fontanería', completada: false },
+    { id: '3', titulo: 'Alicatado y Suelos', completada: false },
+    { id: '4', titulo: 'Pintura y Acabados', completada: false },
+  ]);
 
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
@@ -86,7 +102,7 @@ export default function NuevoPartePage() {
 
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id, nombre_obra, fecha_inicio, fecha_fin, porcentaje_avance, estado_obra, created_at')
+        .select('obra_id, nombre_obra, fecha_inicio, fecha_fin, porcentaje_avance, estado_obra, fases, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -169,6 +185,10 @@ export default function NuevoPartePage() {
 
     cargarDatosObra();
   }, [selectedObraId]);
+
+  const toggleFase = (id: string) => {
+    setFases(fases.map((f) => (f.id === id ? { ...f, completada: !f.completada } : f)));
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -337,6 +357,8 @@ export default function NuevoPartePage() {
           fecha_fin: fechaFinInput || null,
           porcentaje_avance: porcentajeInput,
           estado_obra: estadoObraInput,
+          fases: fases,
+          es_antes: esAntesInput,
         },
       ]);
 
@@ -367,6 +389,7 @@ export default function NuevoPartePage() {
       setRoomName('');
       setDescription('');
       setFiles(null);
+      setEsAntesInput(false);
     } catch (error: any) {
       alert('Error al guardar el parte: ' + error.message);
     } finally {
@@ -702,6 +725,26 @@ export default function NuevoPartePage() {
               </div>
             </div>
 
+            {/* FASES Y CHECKLIST */}
+            <div className="bg-slate-950/50 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
+              <label className="block text-xs font-bold text-blue-400 uppercase">Fases De La Reforma (Hitos)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {fases.map((fase) => (
+                  <label key={fase.id} className="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-800 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={fase.completada}
+                      onChange={() => toggleFase(fase.id)}
+                      className="rounded accent-emerald-500"
+                    />
+                    <span className={fase.completada ? 'text-emerald-400 font-semibold line-through' : 'text-slate-300'}>
+                      {fase.titulo}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* PORCENTAJE */}
             <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs">
@@ -743,8 +786,8 @@ export default function NuevoPartePage() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías De La Jornada</label>
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-300 uppercase">4. Fotografías De La Jornada</label>
               <input
                 type="file"
                 multiple
@@ -752,6 +795,15 @@ export default function NuevoPartePage() {
                 onChange={(e) => setFiles(e.target.files)}
                 className="w-full text-slate-400 text-xs file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600/20 file:text-blue-400 file:border-blue-500/30 hover:file:bg-blue-600/30 cursor-pointer"
               />
+              <label className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-rose-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={esAntesInput}
+                  onChange={(e) => setEsAntesInput(e.target.checked)}
+                  className="rounded accent-rose-500"
+                />
+                Marcar estas fotos como "Estado Inicial / Antes" de la reforma
+              </label>
             </div>
 
             <button
