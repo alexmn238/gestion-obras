@@ -62,7 +62,10 @@ export default function NuevoPartePage() {
 
   const [esAntesInput, setEsAntesInput] = useState(false);
 
-  // Fases por defecto de una reforma
+  // Clima para el trabajador
+  const [climaInfo, setClimaInfo] = useState<{ temp: number; estado: string } | null>(null);
+
+  // Fases por defecto
   const [fases, setFases] = useState<Fase[]>([
     { id: '1', titulo: 'Demolición y Desescombro', completada: false },
     { id: '2', titulo: 'Electricidad y Fontanería', completada: false },
@@ -99,6 +102,9 @@ export default function NuevoPartePage() {
       
       const nombre = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Trabajador';
       setNombreTrabajador(nombre);
+
+      // Cargar clima
+      obtenerClima();
 
       const { data, error } = await supabase
         .from('daily_logs')
@@ -141,6 +147,21 @@ export default function NuevoPartePage() {
 
     inicializarTrabajador();
   }, [router]);
+
+  const obtenerClima = async () => {
+    try {
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.47&longitude=-0.37&current_weather=true');
+      const data = await res.json();
+      if (data.current_weather) {
+        setClimaInfo({
+          temp: Math.round(data.current_weather.temperature),
+          estado: data.current_weather.weathercode <= 3 ? '☀️ Despejado' : '🌧️ Lluvia / Nublado',
+        });
+      }
+    } catch (e) {
+      console.error('Error al obtener clima:', e);
+    }
+  };
 
   useEffect(() => {
     if (!selectedObraId || selectedObraId === 'nueva') {
@@ -411,7 +432,7 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO */}
+      {/* ENCABEZADO CON WIDGET DE CLIMA */}
       <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -433,6 +454,13 @@ export default function NuevoPartePage() {
                 }`}>
                   ● {estadoObraInput}
                 </span>
+
+                {/* INDICADOR DE CLIMA EN VIVO */}
+                {climaInfo && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs font-bold">
+                    {climaInfo.estado} ({climaInfo.temp}°C)
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
             </div>
@@ -486,7 +514,7 @@ export default function NuevoPartePage() {
       {/* GRILLA PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* COLUMNA IZQUIERDA: PRESUPUESTOS Y COMENTARIOS */}
+        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-5 space-y-6">
           {selectedObraId && selectedObraId !== 'nueva' && (
             <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
@@ -544,7 +572,6 @@ export default function NuevoPartePage() {
                 )}
               </div>
 
-              {/* FORMULARIO */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto O Extra</span>
                 <input
@@ -725,7 +752,7 @@ export default function NuevoPartePage() {
               </div>
             </div>
 
-            {/* FASES Y CHECKLIST */}
+            {/* FASES */}
             <div className="bg-slate-950/50 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
               <label className="block text-xs font-bold text-blue-400 uppercase">Fases De La Reforma (Hitos)</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
