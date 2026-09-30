@@ -153,14 +153,12 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  // Aprobar pago notificado e insertarlo en el historial de pagos
   const handleAprobarNotificacionPago = async (budget: Budget) => {
     if (!budget.notificacion_pago) return;
 
     const montoAprobado = Number(budget.notificacion_pago);
     const nuevoTotalPagado = Number(budget.monto_pagado) + montoAprobado;
 
-    // 1. Actualizar el monto acumulado del presupuesto
     const { error: err1 } = await supabase
       .from('budgets')
       .update({
@@ -170,7 +168,6 @@ export default function NuevoPartePage() {
       })
       .eq('id', budget.id);
 
-    // 2. Registrar en el historial de pagos (payment_logs)
     const { error: err2 } = await supabase.from('payment_logs').insert([
       {
         obra_id: selectedObraId,
@@ -182,10 +179,8 @@ export default function NuevoPartePage() {
     ]);
 
     if (!err1 && !err2) {
-      alert('Pago verificado y guardado en el historial de cobros.');
+      alert('Pago verificado e ingresado.');
       recargarPagosYPresupuestos();
-    } else {
-      alert('Error al aprobar el pago.');
     }
   };
 
@@ -308,11 +303,12 @@ export default function NuevoPartePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 md:p-8 max-w-md sm:max-w-xl md:max-w-4xl mx-auto space-y-6">
+      {/* Encabezado */}
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-blue-400">Panel de Trabajador</h1>
-          <p className="text-xs text-slate-400">Tus faenas asignadas</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-400">Panel del Trabajador</h1>
+          <p className="text-xs text-slate-400">Tus faenas activas</p>
         </div>
         <button onClick={handleLogout} className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded">
           Cerrar Sesión
@@ -321,170 +317,156 @@ export default function NuevoPartePage() {
 
       {clienteUrl && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
-          <label className="block text-xs font-medium text-slate-300">Enlace privado cliente:</label>
+          <label className="block text-xs font-medium text-slate-300">Enlace privado para enviar al cliente:</label>
           <div className="flex items-center justify-between gap-2 bg-slate-900 p-2.5 rounded border border-slate-700">
             <span className="text-xs font-mono text-blue-400 truncate">{clienteUrl}</span>
             <button onClick={copiarEnlaceCliente} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shrink-0">
-              {copiado ? '✓ ¡Copiado!' : 'Copiar Enlace'}
+              {copiado ? '✓ Copiado' : 'Copiar'}
             </button>
           </div>
         </div>
       )}
 
-      {/* PRESUPUESTOS Y REGISTRO DE COBROS */}
-      {selectedObraId && selectedObraId !== 'nueva' && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
-          <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-            💰 Presupuestos y Cobros
+      {/* DISPOSICIÓN EN 2 COLUMNAS PARA ORDENADOR (MD:) / 1 COLUMNA EN MÓVIL */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* COLUMNA IZQUIERDA: PRESUPUESTOS Y COBROS */}
+        {selectedObraId && selectedObraId !== 'nueva' && (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
+            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              💰 Presupuestos y Cobros
+            </h3>
+
+            <div className="space-y-3">
+              {budgets.map((b) => (
+                <div key={b.id} className="bg-slate-900 p-3 rounded border border-slate-700 text-xs space-y-2">
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="text-white">{b.titulo} {b.es_extra && <span className="text-amber-400">[EXTRA]</span>}</span>
+                    <span className="text-blue-400">{Number(b.monto_total).toFixed(2)} €</span>
+                  </div>
+
+                  <div className="flex justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-1">
+                    <span>Pagado: <strong className="text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</strong></span>
+                    <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
+                  </div>
+
+                  {b.notificacion_pago && b.notificacion_pago > 0 && (
+                    <div className="bg-amber-950/60 border border-amber-500/50 p-2.5 rounded text-xs space-y-2">
+                      <p className="text-amber-300 font-semibold">
+                        📩 El cliente notifica entrega de {Number(b.notificacion_pago).toFixed(2)} €
+                      </p>
+                      <button
+                        onClick={() => handleAprobarNotificacionPago(b)}
+                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs"
+                      >
+                        ✓ Aprobar Pago
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-700 space-y-2">
+              <span className="block text-xs font-medium text-slate-300">Añadir Presupuesto / Extra</span>
+              <input
+                type="text"
+                placeholder="Título (Ej: Presupuesto Base)"
+                value={nuevoTitulo}
+                onChange={(e) => setNuevoTitulo(e.target.value)}
+                className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Monto Total (€)"
+                  value={nuevoTotal}
+                  onChange={(e) => setNuevoTotal(e.target.value)}
+                  className="flex-1 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+                />
+                <label className="flex items-center gap-1 text-xs text-slate-300">
+                  <input type="checkbox" checked={esExtra} onChange={(e) => setEsExtra(e.target.checked)} />
+                  Extra
+                </label>
+                <button onClick={handleCrearPresupuesto} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold">
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* COLUMNA DERECHA: PUBLICACIÓN DE PARTE */}
+        <form onSubmit={handleSubmit} className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
+          <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+            📝 Publicar Nuevo Parte Diario
           </h3>
 
-          <div className="space-y-3">
-            {budgets.map((b) => (
-              <div key={b.id} className="bg-slate-900 p-3 rounded border border-slate-700 text-xs space-y-2">
-                <div className="flex justify-between items-center font-bold">
-                  <span className="text-white">{b.titulo} {b.es_extra && <span className="text-amber-400">[EXTRA]</span>}</span>
-                  <span className="text-blue-400">{Number(b.monto_total).toFixed(2)} €</span>
-                </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Seleccionar Faena / Obra</label>
+            <select
+              value={selectedObraId}
+              onChange={(e) => setSelectedObraId(e.target.value)}
+              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
+            >
+              {misObras.map((obra) => (
+                <option key={obra.obra_id} value={obra.obra_id}>{obra.nombre_obra}</option>
+              ))}
+              <option value="nueva">+ Registrar nueva reforma...</option>
+            </select>
 
-                <div className="flex justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-1">
-                  <span>Pagado: <strong className="text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</strong></span>
-                  <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
-                </div>
-
-                {b.notificacion_pago && b.notificacion_pago > 0 && (
-                  <div className="bg-amber-950/60 border border-amber-500/50 p-2.5 rounded text-xs space-y-2">
-                    <p className="text-amber-300 font-semibold">
-                      📩 El cliente notifica entrega de {Number(b.notificacion_pago).toFixed(2)} €
-                    </p>
-                    <p className="text-[11px] text-slate-300 italic">"{b.mensaje_pago}"</p>
-                    <button
-                      onClick={() => handleAprobarNotificacionPago(b)}
-                      className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded transition-colors text-xs"
-                    >
-                      ✓ Aprobar y Registrar en el Historial
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* HISTORIAL VISIBLE DE PAGOS */}
-          <div className="pt-3 border-t border-slate-700 space-y-2">
-            <h4 className="text-[11px] font-semibold text-emerald-400 uppercase">📜 Historial de Cobros Recibidos</h4>
-            {paymentLogs.length === 0 ? (
-              <p className="text-[11px] text-slate-400 italic">No hay historial registrado.</p>
-            ) : (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {paymentLogs.map((p) => (
-                  <div key={p.id} className="bg-slate-900 p-2 rounded border border-slate-800 text-[11px] flex justify-between items-center">
-                    <div>
-                      <span className="font-bold text-emerald-400">+{Number(p.monto).toFixed(2)} €</span>
-                      <p className="text-[10px] text-slate-400">{p.concepto}</p>
-                    </div>
-                    <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString('es-ES')}</span>
-                  </div>
-                ))}
-              </div>
+            {selectedObraId === 'nueva' && (
+              <input
+                type="text"
+                required
+                placeholder="Nombre de la reforma"
+                value={nuevaObraNombre}
+                onChange={(e) => setNuevaObraNombre(e.target.value)}
+                className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white mt-2 text-xs"
+              />
             )}
           </div>
 
-          <div className="pt-3 border-t border-slate-700 space-y-2">
-            <span className="block text-xs font-medium text-slate-300">Añadir Nuevo Presupuesto o Extra</span>
-            <input
-              type="text"
-              placeholder="Título (Ej: Presupuesto Base o Extra Falso Techo)"
-              value={nuevoTitulo}
-              onChange={(e) => setNuevoTitulo(e.target.value)}
-              className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
-            />
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Monto Total (€)"
-                value={nuevoTotal}
-                onChange={(e) => setNuevoTotal(e.target.value)}
-                className="flex-1 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
-              />
-              <label className="flex items-center gap-1 text-xs text-slate-300">
-                <input type="checkbox" checked={esExtra} onChange={(e) => setEsExtra(e.target.checked)} />
-                ¿Extra?
-              </label>
-              <button onClick={handleCrearPresupuesto} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold">
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* FORMULARIO PUBLICAR PARTE */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Seleccionar Faena / Obra</label>
-          <select
-            value={selectedObraId}
-            onChange={(e) => setSelectedObraId(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white text-sm"
-          >
-            {misObras.map((obra) => (
-              <option key={obra.obra_id} value={obra.obra_id}>{obra.nombre_obra}</option>
-            ))}
-            <option value="nueva">+ Registrar nueva reforma...</option>
-          </select>
-
-          {selectedObraId === 'nueva' && (
+          <div>
+            <label className="block text-xs font-medium mb-1">Estancia / Zona</label>
             <input
               type="text"
               required
-              placeholder="Nombre de la reforma (ej. Reforma Cocina Don Mateo)"
-              value={nuevaObraNombre}
-              onChange={(e) => setNuevaObraNombre(e.target.value)}
-              className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white mt-2 text-sm"
+              placeholder="Ej. Baño principal"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
             />
-          )}
-        </div>
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Estancia / Zona</label>
-          <input
-            type="text"
-            required
-            placeholder="Ej. Baño principal"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white text-sm"
-          />
-        </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Descripción</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Detalla los avances..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Descripción de los avances</label>
-          <textarea
-            required
-            rows={4}
-            placeholder="Detalla los avances del día..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white text-sm"
-          />
-        </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Fotografías</label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => setFiles(e.target.files)}
+              className="w-full text-slate-400 text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-blue-600 file:text-white"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Fotografías de la obra</label>
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={(e) => setFiles(e.target.files)}
-            className="w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white"
-          />
-        </div>
-
-        <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors disabled:opacity-50 text-sm">
-          {loading ? 'Subiendo fotos y datos...' : 'Publicar Parte'}
-        </button>
-      </form>
+          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors text-xs">
+            {loading ? 'Subiendo...' : 'Publicar Parte'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
