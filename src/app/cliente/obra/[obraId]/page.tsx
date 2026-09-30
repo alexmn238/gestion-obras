@@ -32,31 +32,33 @@ interface Budget {
 
 export default function ClienteObraPage() {
   const params = useParams();
-  const obra_id = params.obra_id as string;
+  
+  // Soporta ambas convenciones de nombre de carpeta ([obraId] o [obra_id])
+  const obra_id = (params?.obraId || params?.obra_id || params?.id) as string;
 
   const [logs, setLogs] = useState<Log[]>([]);
   const [comentarios, setComentarios] = useState<Comment[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Nombre de la Empresa Constructora
-  const [nombreEmpresa, setNombreEmpresa] = useState('Gestión de Reformas');
-
+  const [nombreEmpresa] = useState('Gestión de Reformas');
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [autorNombre, setAutorNombre] = useState('Cliente');
 
-  // Notificación de pago
   const [budgetIdNotificar, setBudgetIdNotificar] = useState<string>('');
   const [montoNotificar, setMontoNotificar] = useState('');
   const [mensajeNotificar, setMensajeNotificar] = useState('');
   const [enviandoPago, setEnviandoPago] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
+    // Si aún no se detecta el parámetro de la URL, no ejecutamos la consulta
     if (!obra_id) return;
 
     async function cargarTodo() {
       try {
-        // Ejecutamos las tres consultas a la vez (en paralelo) para que cargue mucho más rápido
+        setLoading(true);
+
+        // Consultas en paralelo a Supabase
         const [resLogs, resComments, resBudgets] = await Promise.all([
           supabase
             .from('daily_logs')
@@ -82,9 +84,9 @@ useEffect(() => {
           if (resBudgets.data.length > 0) setBudgetIdNotificar(resBudgets.data[0].id);
         }
       } catch (error) {
-        console.error('Error al cargar la obra:', error);
+        console.error('Error cargando los datos de la obra:', error);
       } finally {
-        // Desactiva la pantalla de carga sí o sí, incluso si falla alguna petición
+        // Garantiza la desactivación de la pantalla de carga en todo escenario
         setLoading(false);
       }
     }
@@ -151,7 +153,7 @@ useEffect(() => {
     );
   }
 
-  const nombreObraHeader = logs.length > 0 ? logs[0].nombre_obra : 'Seguimiento de Reforma';
+  const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento de Reforma';
 
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
@@ -159,8 +161,6 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-      
-      {/* ENCABEZADO OBRA CLIENTE CON NOMBRE DE EMPRESA */}
       <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -173,7 +173,6 @@ useEffect(() => {
           <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
         </div>
 
-        {/* RESUMEN RÁPIDO FINANCIERO */}
         {budgets.length > 0 && (
           <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl">
             <div className="text-center px-2">
@@ -194,11 +193,8 @@ useEffect(() => {
         )}
       </header>
 
-      {/* SECCIÓN PRESUPUESTO Y NOTIFICACIÓN DE PAGO */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          
-          {/* TABLA DE PRESUPUESTOS */}
           <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
             <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
               💳 Estado de Presupuestos y Pagos
@@ -221,7 +217,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* FORMULARIO DE NOTIFICAR PAGO */}
           <div className="md:col-span-5 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
             <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
               📩 Avisar de Transferencia / Pago
@@ -261,11 +256,9 @@ useEffect(() => {
               </button>
             </form>
           </div>
-
         </section>
       )}
 
-      {/* BITÁCORA DE AVANCES */}
       <section className="space-y-4">
         <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
           📸 Avances Diarios de la Obra ({logs.length})
@@ -316,7 +309,6 @@ useEffect(() => {
         )}
       </section>
 
-      {/* CANAL DE COMENTARIOS */}
       <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
         <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
           💬 Consultas y Comentarios con la Empresa
@@ -369,7 +361,6 @@ useEffect(() => {
           </button>
         </form>
       </section>
-
     </div>
   );
 }
