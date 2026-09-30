@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 
-interface DailyLog {
+interface Log {
   id: string;
   obra_id: string;
-  nombre_obra?: string;
+  nombre_obra: string;
   room_name: string;
   description: string;
   photos_urls: string[];
@@ -17,7 +17,6 @@ interface DailyLog {
 interface Comment {
   id: string;
   obra_id: string;
-  daily_log_id?: string | null;
   autor: string;
   contenido: string;
   created_at: string;
@@ -28,260 +27,343 @@ interface Budget {
   titulo: string;
   monto_total: number;
   monto_pagado: number;
-  notificacion_pago?: number;
-  mensaje_pago?: string;
   es_extra: boolean;
 }
 
-interface PaymentLog {
-  id: string;
-  monto: number;
-  concepto: string;
-  registrado_por: string;
-  created_at: string;
-}
-
-export default function ObraClientePage() {
+export default function ClienteObraPage() {
   const params = useParams();
-  const obraId = (params?.obraId || params?.id) as string;
+  const obra_id = params.obra_id as string;
 
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [comentarios, setComentarios] = useState<Comment[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [nuevoComentarioGen, setNuevoComentarioGen] = useState('');
-  const [comentariosParte, setComentariosParte] = useState<{ [logId: string]: string }>({});
+  const [nuevoComentario, setNuevoComentario] = useState('');
+  const [autorNombre, setAutorNombre] = useState('Cliente');
+
+  // Notificación de pago
+  const [budgetIdNotificar, setBudgetIdNotificar] = useState<string>('');
+  const [montoNotificar, setMontoNotificar] = useState('');
+  const [mensajeNotificar, setMensajeNotificar] = useState('');
+  const [enviandoPago, setEnviandoPago] = useState(false);
 
   useEffect(() => {
-    if (!obraId) return;
-    cargarDatos();
-  }, [obraId]);
+    if (!obra_id) return;
 
-  async function cargarDatos() {
-    setLoading(true);
+    async function cargarTodo() {
+      // Cargar partes
+      const { data: dataLogs } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('obra_id', obra_id)
+        .order('created_at', { ascending: false });
 
-    const { data: logsData } = await supabase
-      .from('daily_logs')
-      .select('*')
-      .eq('obra_id', obraId)
-      .order('created_at', { ascending: false });
+      if (dataLogs) setLogs(dataLogs);
 
-    const { data: commentsData } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('obra_id', obraId)
-      .order('created_at', { ascending: true });
+      // Cargar comentarios
+      const { data: dataComments } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('obra_id', obra_id)
+        .order('created_at', { ascending: true });
 
-    const { data: budgetsData } = await supabase
-      .from('budgets')
-      .select('*')
-      .eq('obra_id', obraId)
-      .order('created_at', { ascending: true });
+      if (dataComments) setComentarios(dataComments);
 
-    const { data: paymentsData } = await supabase
-      .from('payment_logs')
-      .select('*')
-      .eq('obra_id', obraId)
-      .order('created_at', { ascending: false });
+      // Cargar presupuestos
+      const { data: dataBudgets } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('obra_id', obra_id)
+        .order('created_at', { ascending: true });
 
-    setLogs(logsData || []);
-    setComments(commentsData || []);
-    setBudgets(budgetsData || []);
-    setPaymentLogs(paymentsData || []);
-    setLoading(false);
-  }
+      if (dataBudgets) {
+        setBudgets(dataBudgets);
+        if (dataBudgets.length > 0) setBudgetIdNotificar(dataBudgets[0].id);
+      }
 
-  const notificarEntrega = async (budgetId: string) => {
-    const monto = prompt('Indica la cantidad exacta entregada (€):');
-    if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) return;
-
-    const nota = prompt('Detalle del pago (ej. Transferencia, En efectivo):') || 'Pago notificado por el cliente';
-
-    const { error } = await supabase
-      .from('budgets')
-      .update({
-        notificacion_pago: parseFloat(monto),
-        mensaje_pago: nota,
-      })
-      .eq('id', budgetId);
-
-    if (!error) {
-      alert('Notificación de pago enviada correctamente.');
-      cargarDatos();
-    } else {
-      alert('Error al notificar: ' + error.message);
+      setLoading(false);
     }
-  };
 
-  const enviarComentario = async (dailyLogId: string | null, texto: string) => {
-    if (!texto.trim()) return;
+    cargarTodo();
+  }, [obra_id]);
+
+  const handleEnviarComentario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoComentario.trim()) return;
 
     const { error } = await supabase.from('comments').insert([
       {
-        obra_id: obraId,
-        daily_log_id: dailyLogId,
-        autor: 'Cliente',
-        contenido: texto.trim(),
+        obra_id,
+        autor: autorNombre || 'Cliente',
+        contenido: nuevoComentario.trim(),
       },
     ]);
 
     if (!error) {
-      if (dailyLogId) setComentariosParte({ ...comentariosParte, [dailyLogId]: '' });
-      else setNuevoComentarioGen('');
-      cargarDatos();
+      setNuevoComentario('');
+      const { data } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('obra_id', obra_id)
+        .order('created_at', { ascending: true });
+      if (data) setComentarios(data);
     }
   };
+
+  const handleNotificarPago = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!budgetIdNotificar || !montoNotificar) return;
+
+    setEnviandoPago(true);
+
+    const { error } = await supabase
+      .from('budgets')
+      .update({
+        notificacion_pago: parseFloat(montoNotificar),
+        mensaje_pago: mensajeNotificar || 'Aviso de pago del cliente',
+      })
+      .eq('id', budgetIdNotificar);
+
+    setEnviandoPago(false);
+
+    if (!error) {
+      alert('Aviso de pago enviado a la empresa constructora.');
+      setMontoNotificar('');
+      setMensajeNotificar('');
+    } else {
+      alert('Error al enviar el aviso de pago.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-slate-400 text-sm">Cargando bitácora de la obra...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const nombreObraHeader = logs.length > 0 ? logs[0].nombre_obra : 'Seguimiento de Reforma';
 
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
   const totalPendiente = totalPresupuestado - totalPagado;
 
-  const tituloObra = logs.length > 0 && logs[0].nombre_obra
-    ? logs[0].nombre_obra
-    : 'Seguimiento de Su Obra';
-
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 md:p-8 max-w-md sm:max-w-xl md:max-w-4xl mx-auto space-y-6">
-      <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+      
+      {/* ENCABEZADO OBRA CLIENTE */}
+      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-400">{tituloObra}</h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">Portal de seguimiento en vivo y gestión de avances</p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-2">
+            🏡 Portal Privado del Cliente
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
+          <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
         </div>
+
+        {/* RESUMEN RÁPIDO FINANCIERO */}
+        {budgets.length > 0 && (
+          <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl">
+            <div className="text-center px-2">
+              <span className="block text-[10px] text-slate-400 font-bold uppercase">Total</span>
+              <span className="text-sm font-bold text-white font-mono">{totalPresupuestado.toFixed(2)} €</span>
+            </div>
+            <div className="border-r border-slate-800"></div>
+            <div className="text-center px-2">
+              <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
+              <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
+            </div>
+            <div className="border-r border-slate-800"></div>
+            <div className="text-center px-2">
+              <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
+              <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* TARJETA ECONÓMICA ADAPTATIVA */}
-      <section className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 space-y-4 shadow-xl">
-        <h2 className="text-base sm:text-lg font-bold text-amber-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-          📊 Resumen Económico
+      {/* SECCIÓN PRESUPUESTO Y NOTIFICACIÓN DE PAGO */}
+      {budgets.length > 0 && (
+        <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          
+          {/* TABLA DE PRESUPUESTOS */}
+          <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
+            <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+              💳 Estado de Presupuestos y Pagos
+            </h2>
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {budgets.map((b) => (
+                <div key={b.id} className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="font-semibold text-white block">
+                      {b.titulo} {b.es_extra && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
+                    </span>
+                    <span className="text-[10px] text-emerald-400">Pagado: {Number(b.monto_pagado).toFixed(2)} €</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-white block">{Number(b.monto_total).toFixed(2)} €</span>
+                    <span className="text-[10px] text-rose-400">Pendiente: {(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* FORMULARIO DE NOTIFICAR PAGO */}
+          <div className="md:col-span-5 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
+            <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+              📩 Avisar de Transferencia / Pago
+            </h2>
+            <form onSubmit={handleNotificarPago} className="space-y-2.5">
+              <select
+                value={budgetIdNotificar}
+                onChange={(e) => setBudgetIdNotificar(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                {budgets.map((b) => (
+                  <option key={b.id} value={b.id}>{b.titulo}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="Monto enviado (€)"
+                value={montoNotificar}
+                onChange={(e) => setMontoNotificar(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+              <input
+                type="text"
+                placeholder="Notas (ej: Pago por transferencia)"
+                value={mensajeNotificar}
+                onChange={(e) => setMensajeNotificar(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={enviandoPago}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20"
+              >
+                {enviandoPago ? 'Enviando...' : 'Enviar Confirmación de Pago'}
+              </button>
+            </form>
+          </div>
+
+        </section>
+      )}
+
+      {/* BITÁCORA DE AVANCES (FOTOS Y DESCRIPCIÓN) */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          📸 Avances Diarios de la Obra ({logs.length})
         </h2>
 
-        {/* Cifras Globales (1 col en móvil, 3 en tablet/PC) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-          <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-700">
-            <span className="block text-[10px] sm:text-xs text-slate-400 uppercase font-semibold">Total Presupuesto</span>
-            <span className="text-sm sm:text-base md:text-lg font-bold text-white">{totalPresupuestado.toFixed(2)} €</span>
+        {logs.length === 0 ? (
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-xs">
+            Aún no se han registrado partes ni fotografías en esta reforma.
           </div>
-          <div className="bg-slate-900/80 p-3 rounded-lg border border-emerald-900/50">
-            <span className="block text-[10px] sm:text-xs text-emerald-400 uppercase font-semibold">Abonado / Pagado</span>
-            <span className="text-sm sm:text-base md:text-lg font-bold text-emerald-400">{totalPagado.toFixed(2)} €</span>
-          </div>
-          <div className="bg-slate-900/80 p-3 rounded-lg border border-rose-900/50">
-            <span className="block text-[10px] sm:text-xs text-rose-400 uppercase font-semibold">Pendiente</span>
-            <span className="text-sm sm:text-base md:text-lg font-bold text-rose-400">{totalPendiente.toFixed(2)} €</span>
-          </div>
-        </div>
-
-        {/* Desglose de Presupuestos (2 columnas en PC) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase">Presupuestos y Extras</h3>
-            {budgets.map((b) => (
-              <div key={b.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs space-y-2">
-                <div className="flex justify-between items-center font-semibold">
-                  <span className="text-slate-200">{b.titulo} {b.es_extra && <span className="text-amber-400">[EXTRA]</span>}</span>
-                  <span className="font-mono text-white">{Number(b.monto_total).toFixed(2)} €</span>
-                </div>
-
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>Confirmado: <strong className="text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</strong></span>
-                  <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
-                </div>
-
-                {b.notificacion_pago && b.notificacion_pago > 0 ? (
-                  <div className="bg-amber-950/40 border border-amber-800/50 p-2 rounded text-[11px] text-amber-300">
-                    ⏳ <strong>Entrega Notificada:</strong> {Number(b.notificacion_pago).toFixed(2)} € ({b.mensaje_pago})
+        ) : (
+          <div className="space-y-6">
+            {logs.map((log) => (
+              <article key={log.id} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🛠️</span>
+                    <h3 className="font-bold text-sm text-white">{log.room_name}</h3>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => notificarEntrega(b.id)}
-                    className="w-full py-2 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 rounded text-xs font-medium transition-colors"
-                  >
-                    ✉️ Confirmar Entrega de Dinero
-                  </button>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{log.description}</p>
+
+                {/* GALERÍA DE FOTOS */}
+                {log.photos_urls && log.photos_urls.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                    {log.photos_urls.map((url, idx) => (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative aspect-square rounded-xl overflow-hidden border border-slate-800 bg-slate-950 block"
+                      >
+                        <img
+                          src={url}
+                          alt={`Avance ${idx}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </a>
+                    ))}
+                  </div>
                 )}
-              </div>
+              </article>
             ))}
           </div>
-
-          {/* Historial de Pagos */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-emerald-400 uppercase">📜 Historial de Cobros Recibidos</h3>
-            {paymentLogs.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">Sin entregas confirmadas aún.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {paymentLogs.map((p) => (
-                  <div key={p.id} className="flex justify-between items-center bg-slate-900 p-2.5 rounded border border-slate-800 text-xs">
-                    <div>
-                      <span className="text-emerald-400 font-bold">+{Number(p.monto).toFixed(2)} €</span>
-                      <p className="text-[10px] text-slate-400">{p.concepto || 'Abono recibido'}</p>
-                    </div>
-                    <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString('es-ES')}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </section>
 
-      {/* PARTES DE AVANCE DIARIO */}
-      <div className="space-y-6">
-        <h2 className="text-lg font-bold text-white border-b border-slate-800 pb-2">📸 Diario de Avances</h2>
+      {/* CANAL DE COMENTARIOS / PREGUNTAS */}
+      <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
+        <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+          💬 Consultas y Comentarios con la Empresa
+        </h2>
 
-        {logs.map((log) => {
-          const comentariosDelParte = comments.filter((c) => c.daily_log_id === log.id);
-
-          return (
-            <article key={log.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 space-y-4 shadow-md">
-              <div className="flex justify-between items-start border-b border-slate-700 pb-2">
-                <h3 className="text-base sm:text-lg font-semibold text-white">{log.room_name}</h3>
-                <span className="text-xs text-slate-400">
-                  {new Date(log.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-              </div>
-
-              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{log.description}</p>
-
-              {/* Imágenes (2 columnas en móvil, 3 o 4 en PC) */}
-              {log.photos_urls && log.photos_urls.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-2">
-                  {log.photos_urls.map((url, idx) => (
-                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg border border-slate-700 hover:opacity-90">
-                      <img src={url} alt={`Foto ${log.room_name}`} className="w-full h-32 sm:h-36 md:h-40 object-cover" />
-                    </a>
-                  ))}
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          {comentarios.length === 0 ? (
+            <p className="text-xs text-slate-500 italic">No hay comentarios aún. Escribe una duda o mensaje abajo.</p>
+          ) : (
+            comentarios.map((c) => (
+              <div
+                key={c.id}
+                className={`p-3 rounded-xl border text-xs space-y-1 ${
+                  c.autor === 'Cliente'
+                    ? 'bg-blue-950/30 border-blue-800/40 text-blue-200 ml-4'
+                    : 'bg-slate-950 border-slate-800 text-slate-200 mr-4'
+                }`}
+              >
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span className="font-bold text-white">{c.autor}</span>
+                  <span>{new Date(c.created_at).toLocaleString('es-ES')}</span>
                 </div>
-              )}
-
-              {/* Comentarios del parte */}
-              <div className="bg-slate-900/80 rounded-lg p-3 space-y-3 mt-4 border border-slate-700/50">
-                <h4 className="text-xs font-semibold text-slate-400">Comentarios en esta estancia:</h4>
-                {comentariosDelParte.map((c) => (
-                  <div key={c.id} className={`text-xs p-2.5 rounded ${c.autor === 'Cliente' ? 'bg-blue-950/40 border border-blue-800/40 text-blue-200' : 'bg-slate-800 text-slate-200'}`}>
-                    <span className="font-bold text-slate-400">{c.autor}: </span>
-                    <span>{c.contenido}</span>
-                  </div>
-                ))}
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    placeholder={`Escribir sobre ${log.room_name}...`}
-                    value={comentariosParte[log.id] || ''}
-                    onChange={(e) => setComentariosParte({ ...comentariosParte, [log.id]: e.target.value })}
-                    className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-xs text-white focus:outline-none"
-                  />
-                  <button onClick={() => enviarComentario(log.id, comentariosParte[log.id] || '')} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">
-                    Enviar
-                  </button>
-                </div>
+                <p className="leading-relaxed">{c.contenido}</p>
               </div>
-            </article>
-          );
-        })}
-      </div>
+            ))
+          )}
+        </div>
+
+        <form onSubmit={handleEnviarComentario} className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-800">
+          <input
+            type="text"
+            placeholder="Tu Nombre"
+            value={autorNombre}
+            onChange={(e) => setAutorNombre(e.target.value)}
+            className="sm:w-32 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+          />
+          <input
+            type="text"
+            required
+            placeholder="Escribe tu duda o consulta..."
+            value={nuevoComentario}
+            onChange={(e) => setNuevoComentario(e.target.value)}
+            className="flex-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+          />
+          <button
+            type="submit"
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-500/10 shrink-0"
+          >
+            Enviar Mensaje
+          </button>
+        </form>
+      </section>
+
     </div>
   );
 }

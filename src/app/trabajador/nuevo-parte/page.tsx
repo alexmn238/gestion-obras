@@ -179,7 +179,7 @@ export default function NuevoPartePage() {
     ]);
 
     if (!err1 && !err2) {
-      alert('Pago verificado e ingresado.');
+      alert('Pago verificado y registrado.');
       recargarPagosYPresupuestos();
     }
   };
@@ -210,6 +210,29 @@ export default function NuevoPartePage() {
       setNuevoTotal('');
       setEsExtra(false);
       recargarPagosYPresupuestos();
+    }
+  };
+
+  const handleEnviarComentario = async () => {
+    if (!nuevoComentarioTrabajador.trim() || !selectedObraId || selectedObraId === 'nueva') return;
+
+    const { error } = await supabase.from('comments').insert([
+      {
+        obra_id: selectedObraId,
+        daily_log_id: null,
+        autor: 'Trabajador',
+        contenido: nuevoComentarioTrabajador.trim(),
+      },
+    ]);
+
+    if (!error) {
+      setNuevoComentarioTrabajador('');
+      const { data } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+      if (data) setComentarios(data);
     }
   };
 
@@ -296,176 +319,306 @@ export default function NuevoPartePage() {
 
   if (loadingPage) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-6 flex items-center justify-center">
-        <p className="text-slate-400">Cargando faenas del trabajador...</p>
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-slate-400 text-sm">Cargando panel de gestión...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 md:p-8 max-w-md sm:max-w-xl md:max-w-4xl mx-auto space-y-6">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-400">Panel del Trabajador</h1>
-          <p className="text-xs text-slate-400">Tus faenas activas</p>
-        </div>
-        <button onClick={handleLogout} className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded">
-          Cerrar Sesión
-        </button>
-      </div>
-
-      {clienteUrl && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
-          <label className="block text-xs font-medium text-slate-300">Enlace privado para enviar al cliente:</label>
-          <div className="flex items-center justify-between gap-2 bg-slate-900 p-2.5 rounded border border-slate-700">
-            <span className="text-xs font-mono text-blue-400 truncate">{clienteUrl}</span>
-            <button onClick={copiarEnlaceCliente} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shrink-0">
-              {copiado ? '✓ Copiado' : 'Copiar'}
-            </button>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+      
+      {/* ENCABEZADO PRINCIPAL */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
+            👷
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
+            <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
           </div>
         </div>
+        <button
+          onClick={handleLogout}
+          className="self-start sm:self-auto px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold transition-all shadow-sm"
+        >
+          🚪 Cerrar Sesión
+        </button>
+      </header>
+
+      {/* ENLACE PRIVADO CLIENTE */}
+      {clienteUrl && (
+        <section className="bg-gradient-to-r from-blue-950/40 via-slate-900/80 to-slate-900/80 border border-blue-500/30 rounded-2xl p-4 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+              🔗
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-blue-400">Enlace Privado para el Cliente</span>
+              <p className="text-xs text-slate-300 font-mono truncate">{clienteUrl}</p>
+            </div>
+          </div>
+          <button
+            onClick={copiarEnlaceCliente}
+            className="w-full md:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 shrink-0"
+          >
+            {copiado ? '✓ ¡Enlace Copiado!' : 'Copiar Enlace'}
+          </button>
+        </section>
       )}
 
-      {/* DISPOSICIÓN EN 2 COLUMNAS PARA ORDENADOR (MD:) / 1 COLUMNA EN MÓVIL */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* COLUMNA IZQUIERDA: PRESUPUESTOS Y COBROS */}
-        {selectedObraId && selectedObraId !== 'nueva' && (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
-            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              💰 Presupuestos y Cobros
-            </h3>
+      {/* GRILLA PRINCIPAL */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* COLUMNA IZQUIERDA: FINANZAS Y COMENTARIOS (5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* MÓDULO PRESUPUESTOS */}
+          {selectedObraId && selectedObraId !== 'nueva' && (
+            <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                  💰 Presupuestos y Cobros
+                </h2>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                  {budgets.length} Registro(s)
+                </span>
+              </div>
 
-            <div className="space-y-3">
-              {budgets.map((b) => (
-                <div key={b.id} className="bg-slate-900 p-3 rounded border border-slate-700 text-xs space-y-2">
-                  <div className="flex justify-between items-center font-bold">
-                    <span className="text-white">{b.titulo} {b.es_extra && <span className="text-amber-400">[EXTRA]</span>}</span>
-                    <span className="text-blue-400">{Number(b.monto_total).toFixed(2)} €</span>
-                  </div>
+              <div className="space-y-3">
+                {budgets.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic py-2">No hay presupuestos asignados a esta faena.</p>
+                ) : (
+                  budgets.map((b) => (
+                    <div key={b.id} className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <span className="font-semibold text-xs text-slate-200">
+                          {b.titulo} {b.es_extra && <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-white bg-slate-800 px-2 py-1 rounded-lg border border-slate-700">
+                          {Number(b.monto_total).toFixed(2)} €
+                        </span>
+                      </div>
 
-                  <div className="flex justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-1">
-                    <span>Pagado: <strong className="text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</strong></span>
-                    <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
-                  </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                        <div className="bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg text-center">
+                          <span className="block text-[9px] text-emerald-400/80 font-bold uppercase">Pagado</span>
+                          <span className="font-bold text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</span>
+                        </div>
+                        <div className="bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg text-center">
+                          <span className="block text-[9px] text-rose-400/80 font-bold uppercase">Pendiente</span>
+                          <span className="font-bold text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</span>
+                        </div>
+                      </div>
 
-                  {b.notificacion_pago && b.notificacion_pago > 0 && (
-                    <div className="bg-amber-950/60 border border-amber-500/50 p-2.5 rounded text-xs space-y-2">
-                      <p className="text-amber-300 font-semibold">
-                        📩 El cliente notifica entrega de {Number(b.notificacion_pago).toFixed(2)} €
-                      </p>
-                      <button
-                        onClick={() => handleAprobarNotificacionPago(b)}
-                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs"
-                      >
-                        ✓ Aprobar Pago
-                      </button>
+                      {/* NOTIFICACIÓN DE PAGO POR EL CLIENTE */}
+                      {b.notificacion_pago && b.notificacion_pago > 0 && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl space-y-2 mt-2">
+                          <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                            🔔 Cliente notifica entrega: {Number(b.notificacion_pago).toFixed(2)} €
+                          </div>
+                          {b.mensaje_pago && <p className="text-[11px] text-slate-300 italic">"{b.mensaje_pago}"</p>}
+                          <button
+                            onClick={() => handleAprobarNotificacionPago(b)}
+                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all text-xs shadow-md shadow-emerald-600/20"
+                          >
+                            ✓ Aprobar e Ingresar Pago
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                  ))
+                )}
+              </div>
 
-            <div className="pt-3 border-t border-slate-700 space-y-2">
-              <span className="block text-xs font-medium text-slate-300">Añadir Presupuesto / Extra</span>
-              <input
-                type="text"
-                placeholder="Título (Ej: Presupuesto Base)"
-                value={nuevoTitulo}
-                onChange={(e) => setNuevoTitulo(e.target.value)}
-                className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
-              />
-              <div className="flex items-center gap-2">
+              {/* FORMULARIO NUEVO PRESUPUESTO */}
+              <div className="pt-3 border-t border-slate-800 space-y-3">
+                <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto o Extra</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Monto Total (€)"
-                  value={nuevoTotal}
-                  onChange={(e) => setNuevoTotal(e.target.value)}
-                  className="flex-1 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+                  type="text"
+                  placeholder="Título (Ej: Presupuesto Base)"
+                  value={nuevoTitulo}
+                  onChange={(e) => setNuevoTitulo(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
                 />
-                <label className="flex items-center gap-1 text-xs text-slate-300">
-                  <input type="checkbox" checked={esExtra} onChange={(e) => setEsExtra(e.target.checked)} />
-                  Extra
-                </label>
-                <button onClick={handleCrearPresupuesto} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold">
-                  Guardar
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Total (€)"
+                    value={nuevoTotal}
+                    onChange={(e) => setNuevoTotal(e.target.value)}
+                    className="flex-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none bg-slate-950 border border-slate-800 px-3 py-2.5 rounded-xl">
+                    <input type="checkbox" checked={esExtra} onChange={(e) => setEsExtra(e.target.checked)} className="rounded accent-emerald-500" />
+                    ¿Extra?
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCrearPresupuesto}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+
+              {/* HISTORIAL DE COBROS */}
+              {paymentLogs.length > 0 && (
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <span className="block text-[11px] font-bold text-slate-400 uppercase">📜 Últimos Cobros Registrados</span>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {paymentLogs.map((p) => (
+                      <div key={p.id} className="bg-slate-950/60 p-2 rounded-lg border border-slate-800 text-[11px] flex justify-between items-center">
+                        <div>
+                          <span className="font-bold text-emerald-400">+{Number(p.monto).toFixed(2)} €</span>
+                          <p className="text-[10px] text-slate-400">{p.concepto}</p>
+                        </div>
+                        <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString('es-ES')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* MÓDULO COMENTARIOS */}
+          {selectedObraId && selectedObraId !== 'nueva' && (
+            <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
+              <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                💬 Canal con el Cliente
+              </h2>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {comentarios.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No hay comentarios en esta obra.</p>
+                ) : (
+                  comentarios.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`p-3 rounded-xl border text-xs space-y-1 ${
+                        c.autor === 'Cliente'
+                          ? 'bg-blue-950/30 border-blue-800/40 text-blue-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-200'
+                      }`}
+                    >
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span className="font-bold text-white">{c.autor}</span>
+                        <span>{new Date(c.created_at).toLocaleString('es-ES')}</span>
+                      </div>
+                      <p className="leading-relaxed">{c.contenido}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-800">
+                <input
+                  type="text"
+                  placeholder="Escribir mensaje..."
+                  value={nuevoComentarioTrabajador}
+                  onChange={(e) => setNuevoComentarioTrabajador(e.target.value)}
+                  className="flex-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={handleEnviarComentario}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-500/10"
+                >
+                  Enviar
                 </button>
               </div>
+            </section>
+          )}
+
+        </div>
+
+        {/* COLUMNA DERECHA: FORMULARIO PUBLICACIÓN DE PARTE (7 cols) */}
+        <div className="lg:col-span-7">
+          <form onSubmit={handleSubmit} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
+            <div className="border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                📝 Publicar Avance Diario
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Sube los partes fotográficos para mantener actualizado al cliente</p>
             </div>
-          </div>
-        )}
 
-        {/* COLUMNA DERECHA: PUBLICACIÓN DE PARTE */}
-        <form onSubmit={handleSubmit} className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
-          <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider">
-            📝 Publicar Nuevo Parte Diario
-          </h3>
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">1. Seleccionar Faena / Obra</label>
+              <select
+                value={selectedObraId}
+                onChange={(e) => setSelectedObraId(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                {misObras.map((obra) => (
+                  <option key={obra.obra_id} value={obra.obra_id}>{obra.nombre_obra}</option>
+                ))}
+                <option value="nueva">+ Registrar nueva reforma...</option>
+              </select>
 
-          <div>
-            <label className="block text-xs font-medium mb-1">Seleccionar Faena / Obra</label>
-            <select
-              value={selectedObraId}
-              onChange={(e) => setSelectedObraId(e.target.value)}
-              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
-            >
-              {misObras.map((obra) => (
-                <option key={obra.obra_id} value={obra.obra_id}>{obra.nombre_obra}</option>
-              ))}
-              <option value="nueva">+ Registrar nueva reforma...</option>
-            </select>
+              {selectedObraId === 'nueva' && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Nombre de la reforma (ej. Reforma Cocina Don Mateo)"
+                  value={nuevaObraNombre}
+                  onChange={(e) => setNuevaObraNombre(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white mt-2 text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              )}
+            </div>
 
-            {selectedObraId === 'nueva' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Estancia / Zona</label>
               <input
                 type="text"
                 required
-                placeholder="Nombre de la reforma"
-                value={nuevaObraNombre}
-                onChange={(e) => setNuevaObraNombre(e.target.value)}
-                className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white mt-2 text-xs"
+                placeholder="Ej. Baño principal, Fachada, Cocina"
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 transition-colors"
               />
-            )}
-          </div>
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1">Estancia / Zona</label>
-            <input
-              type="text"
-              required
-              placeholder="Ej. Baño principal"
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Descripción de los avances</label>
+              <textarea
+                required
+                rows={4}
+                placeholder="Detalla las tareas realizadas hoy..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 transition-colors leading-relaxed"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1">Descripción</label>
-            <textarea
-              required
-              rows={3}
-              placeholder="Detalla los avances..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-white text-xs"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías de la jornada</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => setFiles(e.target.files)}
+                className="w-full text-slate-400 text-xs file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600/20 file:text-blue-400 file:border-blue-500/30 hover:file:bg-blue-600/30 cursor-pointer"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1">Fotografías</label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => setFiles(e.target.files)}
-              className="w-full text-slate-400 text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-blue-600 file:text-white"
-            />
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-blue-600/25 disabled:opacity-50 text-sm tracking-wide"
+            >
+              {loading ? 'Subiendo fotos y registrando parte...' : '🚀 Publicar Parte Diario'}
+            </button>
+          </form>
+        </div>
 
-          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors text-xs">
-            {loading ? 'Subiendo...' : 'Publicar Parte'}
-          </button>
-        </form>
       </div>
     </div>
   );
