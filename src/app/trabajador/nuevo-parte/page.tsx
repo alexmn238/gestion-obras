@@ -40,6 +40,7 @@ export default function NuevoPartePage() {
   const router = useRouter();
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [nombreTrabajador, setNombreTrabajador] = useState<string>('');
   const [misObras, setMisObras] = useState<ObraInfo[]>([]);
   const [selectedObraId, setSelectedObraId] = useState('');
   const [nuevaObraNombre, setNuevaObraNombre] = useState('');
@@ -68,6 +69,10 @@ export default function NuevoPartePage() {
       }
 
       setUserId(user.id);
+      
+      // Obtener el nombre del usuario desde user_metadata o el correo
+      const nombre = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Trabajador';
+      setNombreTrabajador(nombre);
 
       const { data, error } = await supabase
         .from('daily_logs')
@@ -174,7 +179,7 @@ export default function NuevoPartePage() {
         budget_id: budget.id,
         monto: montoAprobado,
         concepto: budget.mensaje_pago || `Pago a ${budget.titulo}`,
-        registrado_por: 'Cliente (Verificado por Empresa)',
+        registrado_por: nombreTrabajador,
       },
     ]);
 
@@ -220,7 +225,7 @@ export default function NuevoPartePage() {
       {
         obra_id: selectedObraId,
         daily_log_id: null,
-        autor: 'Trabajador',
+        autor: nombreTrabajador,
         contenido: nuevoComentarioTrabajador.trim(),
       },
     ]);
@@ -319,7 +324,7 @@ export default function NuevoPartePage() {
 
   if (loadingPage) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center">
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-slate-400 text-sm">Cargando panel de gestión...</span>
@@ -331,14 +336,19 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO PRINCIPAL */}
+      {/* ENCABEZADO PRINCIPAL CON NOMBRE DEL TRABAJADOR */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
             👷
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
+              <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
+                {nombreTrabajador}
+              </span>
+            </div>
             <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
           </div>
         </div>

@@ -39,6 +39,9 @@ export default function ClienteObraPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Nombre de la Empresa Constructora
+  const [nombreEmpresa, setNombreEmpresa] = useState('Gestión de Reformas');
+
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [autorNombre, setAutorNombre] = useState('Cliente');
 
@@ -156,11 +159,14 @@ export default function ClienteObraPage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
       
-      {/* ENCABEZADO OBRA CLIENTE */}
+      {/* ENCABEZADO OBRA CLIENTE CON NOMBRE DE EMPRESA */}
       <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-2">
-            🏡 Portal Privado del Cliente
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
+              🏗️ {nombreEmpresa}
+            </span>
+            <span className="text-xs text-slate-400">• Portal del Cliente</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
           <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
@@ -258,7 +264,7 @@ export default function ClienteObraPage() {
         </section>
       )}
 
-      {/* BITÁCORA DE AVANCES (FOTOS Y DESCRIPCIÓN) */}
+      {/* BITÁCORA DE AVANCES */}
       <section className="space-y-4">
         <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
           📸 Avances Diarios de la Obra ({logs.length})
@@ -284,7 +290,6 @@ export default function ClienteObraPage() {
 
                 <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{log.description}</p>
 
-                {/* GALERÍA DE FOTOS */}
                 {log.photos_urls && log.photos_urls.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
                     {log.photos_urls.map((url, idx) => (
@@ -310,7 +315,7 @@ export default function ClienteObraPage() {
         )}
       </section>
 
-      {/* CANAL DE COMENTARIOS / PREGUNTAS */}
+      {/* CANAL DE COMENTARIOS */}
       <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
         <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
           💬 Consultas y Comentarios con la Empresa
