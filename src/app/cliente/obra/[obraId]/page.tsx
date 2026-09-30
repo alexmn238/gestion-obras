@@ -11,6 +11,7 @@ interface Log {
   room_name: string;
   description: string;
   photos_urls: string[];
+  fecha_inicio?: string;
   created_at: string;
 }
 
@@ -32,8 +33,6 @@ interface Budget {
 
 export default function ClienteObraPage() {
   const params = useParams();
-  
-  // Soporta ambas convenciones de nombre de carpeta ([obraId] o [obra_id])
   const obra_id = (params?.obraId || params?.obra_id || params?.id) as string;
 
   const [logs, setLogs] = useState<Log[]>([]);
@@ -51,14 +50,12 @@ export default function ClienteObraPage() {
   const [enviandoPago, setEnviandoPago] = useState(false);
 
   useEffect(() => {
-    // Si aún no se detecta el parámetro de la URL, no ejecutamos la consulta
     if (!obra_id) return;
 
     async function cargarTodo() {
       try {
         setLoading(true);
 
-        // Consultas en paralelo a Supabase
         const [resLogs, resComments, resBudgets] = await Promise.all([
           supabase
             .from('daily_logs')
@@ -86,7 +83,6 @@ export default function ClienteObraPage() {
       } catch (error) {
         console.error('Error cargando los datos de la obra:', error);
       } finally {
-        // Garantiza la desactivación de la pantalla de carga en todo escenario
         setLoading(false);
       }
     }
@@ -155,6 +151,13 @@ export default function ClienteObraPage() {
 
   const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento de Reforma';
 
+  // Obtener fecha de inicio (del primer log publicado o el más antiguo)
+  const fechaInicioObra = logs.length > 0 && logs[logs.length - 1].fecha_inicio
+    ? logs[logs.length - 1].fecha_inicio
+    : logs.length > 0
+    ? logs[logs.length - 1].created_at
+    : null;
+
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
   const totalPendiente = totalPresupuestado - totalPagado;
@@ -163,11 +166,18 @@ export default function ClienteObraPage() {
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
       <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
               🏗️ {nombreEmpresa}
             </span>
             <span className="text-xs text-slate-400">• Portal del Cliente</span>
+            
+            {/* BADGE DE FECHA DE INICIO DE LA OBRA */}
+            {fechaInicioObra && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+                📅 Inicio: {new Date(fechaInicioObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
           <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
@@ -193,6 +203,7 @@ export default function ClienteObraPage() {
         )}
       </header>
 
+      {/* ESTADO DE PRESUPUESTOS Y NOTIFICACIONES */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
@@ -259,6 +270,7 @@ export default function ClienteObraPage() {
         </section>
       )}
 
+      {/* BITÁCORA DE AVANCES */}
       <section className="space-y-4">
         <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
           📸 Avances Diarios de la Obra ({logs.length})
@@ -309,6 +321,7 @@ export default function ClienteObraPage() {
         )}
       </section>
 
+      {/* COMENTARIOS */}
       <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
         <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
           💬 Consultas y Comentarios con la Empresa

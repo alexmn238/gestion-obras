@@ -7,6 +7,7 @@ import { supabase } from '../../../lib/supabase';
 interface ObraInfo {
   obra_id: string;
   nombre_obra: string;
+  fecha_inicio?: string;
 }
 
 interface Comment {
@@ -44,6 +45,7 @@ export default function NuevoPartePage() {
   const [misObras, setMisObras] = useState<ObraInfo[]>([]);
   const [selectedObraId, setSelectedObraId] = useState('');
   const [nuevaObraNombre, setNuevaObraNombre] = useState('');
+  const [fechaInicioInput, setFechaInicioInput] = useState('');
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -70,27 +72,27 @@ export default function NuevoPartePage() {
 
       setUserId(user.id);
       
-      // Obtener el nombre del usuario desde user_metadata o el correo
       const nombre = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Trabajador';
       setNombreTrabajador(nombre);
 
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id, nombre_obra')
+        .select('obra_id, nombre_obra, fecha_inicio, created_at')
         .eq('user_id', user.id);
 
       if (!error && data) {
-        const mapaObras = new Map<string, string>();
+        const mapaObras = new Map<string, ObraInfo>();
         data.forEach((item) => {
           if (item.obra_id) {
-            mapaObras.set(item.obra_id, item.nombre_obra || item.obra_id);
+            mapaObras.set(item.obra_id, {
+              obra_id: item.obra_id,
+              nombre_obra: item.nombre_obra || item.obra_id,
+              fecha_inicio: item.fecha_inicio || item.created_at,
+            });
           }
         });
 
-        const listaObras: ObraInfo[] = Array.from(mapaObras.entries()).map(([obra_id, nombre_obra]) => ({
-          obra_id,
-          nombre_obra,
-        }));
+        const listaObras: ObraInfo[] = Array.from(mapaObras.values());
 
         setMisObras(listaObras);
         if (listaObras.length > 0) setSelectedObraId(listaObras[0].obra_id);
@@ -157,6 +159,8 @@ export default function NuevoPartePage() {
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   };
+
+  const obraActual = misObras.find((o) => o.obra_id === selectedObraId);
 
   const handleAprobarNotificacionPago = async (budget: Budget) => {
     if (!budget.notificacion_pago) return;
@@ -291,6 +295,8 @@ export default function NuevoPartePage() {
         }
       }
 
+      const fechaFinalInicio = fechaInicioInput || new Date().toISOString().split('T')[0];
+
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
           obra_id: finalObraId,
@@ -299,6 +305,7 @@ export default function NuevoPartePage() {
           description: description,
           photos_urls: photoUrls,
           user_id: userId,
+          fecha_inicio: fechaFinalInicio,
         },
       ]);
 
@@ -307,7 +314,7 @@ export default function NuevoPartePage() {
       alert('Parte publicado correctamente');
 
       if (!misObras.some((o) => o.obra_id === finalObraId)) {
-        setMisObras([...misObras, { obra_id: finalObraId, nombre_obra: finalNombreObra }]);
+        setMisObras([...misObras, { obra_id: finalObraId, nombre_obra: finalNombreObra, fecha_inicio: fechaFinalInicio }]);
       }
 
       setSelectedObraId(finalObraId);
@@ -336,18 +343,23 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO PRINCIPAL CON NOMBRE DEL TRABAJADOR */}
+      {/* ENCABEZADO CON NOMBRE Y FECHA DE INICIO DE LA OBRA */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
             👷
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
               <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
                 {nombreTrabajador}
               </span>
+              {obraActual?.fecha_inicio && (
+                <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full">
+                  📅 Inicio: {new Date(obraActual.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
           </div>
@@ -384,10 +396,8 @@ export default function NuevoPartePage() {
       {/* GRILLA PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* COLUMNA IZQUIERDA: FINANZAS Y COMENTARIOS (5 cols) */}
+        {/* COLUMNA IZQUIERDA: PRESUPUESTOS Y COMENTARIOS */}
         <div className="lg:col-span-5 space-y-6">
-          
-          {/* MÓDULO PRESUPUESTOS */}
           {selectedObraId && selectedObraId !== 'nueva' && (
             <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -425,7 +435,6 @@ export default function NuevoPartePage() {
                         </div>
                       </div>
 
-                      {/* NOTIFICACIÓN DE PAGO POR EL CLIENTE */}
                       {b.notificacion_pago && b.notificacion_pago > 0 && (
                         <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl space-y-2 mt-2">
                           <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
@@ -445,7 +454,6 @@ export default function NuevoPartePage() {
                 )}
               </div>
 
-              {/* FORMULARIO NUEVO PRESUPUESTO */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto o Extra</span>
                 <input
@@ -478,7 +486,6 @@ export default function NuevoPartePage() {
                 </div>
               </div>
 
-              {/* HISTORIAL DE COBROS */}
               {paymentLogs.length > 0 && (
                 <div className="pt-3 border-t border-slate-800 space-y-2">
                   <span className="block text-[11px] font-bold text-slate-400 uppercase">📜 Últimos Cobros Registrados</span>
@@ -498,7 +505,6 @@ export default function NuevoPartePage() {
             </section>
           )}
 
-          {/* MÓDULO COMENTARIOS */}
           {selectedObraId && selectedObraId !== 'nueva' && (
             <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
               <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -546,10 +552,9 @@ export default function NuevoPartePage() {
               </div>
             </section>
           )}
-
         </div>
 
-        {/* COLUMNA DERECHA: FORMULARIO PUBLICACIÓN DE PARTE (7 cols) */}
+        {/* COLUMNA DERECHA: FORMULARIO Y FECHA DE INICIO */}
         <div className="lg:col-span-7">
           <form onSubmit={handleSubmit} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
             <div className="border-b border-slate-800 pb-3">
@@ -585,7 +590,17 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Estancia / Zona</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Fecha de Inicio de la Obra</label>
+              <input
+                type="date"
+                value={fechaInicioInput}
+                onChange={(e) => setFechaInicioInput(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Estancia / Zona</label>
               <input
                 type="text"
                 required
@@ -597,7 +612,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Descripción de los avances</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Descripción de los avances</label>
               <textarea
                 required
                 rows={4}
@@ -609,7 +624,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías de la jornada</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">5. Fotografías de la jornada</label>
               <input
                 type="file"
                 multiple
