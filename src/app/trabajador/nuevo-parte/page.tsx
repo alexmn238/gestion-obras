@@ -8,6 +8,8 @@ interface ObraInfo {
   obra_id: string;
   nombre_obra: string;
   fecha_inicio?: string;
+  fecha_fin?: string;
+  porcentaje_avance?: number;
 }
 
 interface Comment {
@@ -46,6 +48,8 @@ export default function NuevoPartePage() {
   const [selectedObraId, setSelectedObraId] = useState('');
   const [nuevaObraNombre, setNuevaObraNombre] = useState('');
   const [fechaInicioInput, setFechaInicioInput] = useState('');
+  const [fechaFinInput, setFechaFinInput] = useState('');
+  const [porcentajeInput, setPorcentajeInput] = useState(0);
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -77,17 +81,20 @@ export default function NuevoPartePage() {
 
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id, nombre_obra, fecha_inicio, created_at')
-        .eq('user_id', user.id);
+        .select('obra_id, nombre_obra, fecha_inicio, fecha_fin, porcentaje_avance, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (!error && data) {
         const mapaObras = new Map<string, ObraInfo>();
         data.forEach((item) => {
-          if (item.obra_id) {
+          if (item.obra_id && !mapaObras.has(item.obra_id)) {
             mapaObras.set(item.obra_id, {
               obra_id: item.obra_id,
               nombre_obra: item.nombre_obra || item.obra_id,
               fecha_inicio: item.fecha_inicio || item.created_at,
+              fecha_fin: item.fecha_fin || '',
+              porcentaje_avance: item.porcentaje_avance || 0,
             });
           }
         });
@@ -95,8 +102,13 @@ export default function NuevoPartePage() {
         const listaObras: ObraInfo[] = Array.from(mapaObras.values());
 
         setMisObras(listaObras);
-        if (listaObras.length > 0) setSelectedObraId(listaObras[0].obra_id);
-        else setSelectedObraId('nueva');
+        if (listaObras.length > 0) {
+          setSelectedObraId(listaObras[0].obra_id);
+          setPorcentajeInput(listaObras[0].porcentaje_avance || 0);
+          setFechaFinInput(listaObras[0].fecha_fin || '');
+        } else {
+          setSelectedObraId('nueva');
+        }
       } else {
         setSelectedObraId('nueva');
       }
@@ -113,6 +125,12 @@ export default function NuevoPartePage() {
       setBudgets([]);
       setPaymentLogs([]);
       return;
+    }
+
+    const obraActual = misObras.find((o) => o.obra_id === selectedObraId);
+    if (obraActual) {
+      setPorcentajeInput(obraActual.porcentaje_avance || 0);
+      setFechaFinInput(obraActual.fecha_fin || '');
     }
 
     async function cargarDatosObra() {
@@ -160,7 +178,7 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  const obraActual = misObras.find((o) => o.obra_id === selectedObraId);
+  const obraSeleccionada = misObras.find((o) => o.obra_id === selectedObraId);
 
   const handleAprobarNotificacionPago = async (budget: Budget) => {
     if (!budget.notificacion_pago) return;
@@ -295,7 +313,7 @@ export default function NuevoPartePage() {
         }
       }
 
-      const fechaFinalInicio = fechaInicioInput || new Date().toISOString().split('T')[0];
+      const fechaFinalInicio = fechaInicioInput || obraSeleccionada?.fecha_inicio || new Date().toISOString().split('T')[0];
 
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
@@ -306,6 +324,8 @@ export default function NuevoPartePage() {
           photos_urls: photoUrls,
           user_id: userId,
           fecha_inicio: fechaFinalInicio,
+          fecha_fin: fechaFinInput || null,
+          porcentaje_avance: porcentajeInput,
         },
       ]);
 
@@ -313,10 +333,24 @@ export default function NuevoPartePage() {
 
       alert('Parte publicado correctamente');
 
+      // Actualizar listado local de obras
+      const actualizadas = misObras.map((o) =>
+        o.obra_id === finalObraId
+          ? { ...o, fecha_fin: fechaFinInput, porcentaje_avance: porcentajeInput }
+          : o
+      );
+
       if (!misObras.some((o) => o.obra_id === finalObraId)) {
-        setMisObras([...misObras, { obra_id: finalObraId, nombre_obra: finalNombreObra, fecha_inicio: fechaFinalInicio }]);
+        actualizadas.push({
+          obra_id: finalObraId,
+          nombre_obra: finalNombreObra,
+          fecha_inicio: fechaFinalInicio,
+          fecha_fin: fechaFinInput,
+          porcentaje_avance: porcentajeInput,
+        });
       }
 
+      setMisObras(actualizadas);
       setSelectedObraId(finalObraId);
       setNuevaObraNombre('');
       setRoomName('');
@@ -343,33 +377,56 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO CON NOMBRE Y FECHA DE INICIO DE LA OBRA */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
-            👷
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
-              <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
-                {nombreTrabajador}
-              </span>
-              {obraActual?.fecha_inicio && (
-                <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full">
-                  📅 Inicio: {new Date(obraActual.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
-              )}
+      {/* ENCABEZADO CON AVANCE Y FECHA FIN ESTIMADA */}
+      <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-lg">
+              👷
             </div>
-            <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
+                <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
+                  {nombreTrabajador}
+                </span>
+                {obraSeleccionada?.fecha_inicio && (
+                  <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full">
+                    📅 Inicio: {new Date(obraSeleccionada.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+                {obraSeleccionada?.fecha_fin && (
+                  <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold px-2.5 py-0.5 rounded-full">
+                    🏁 Fin Est.: {new Date(obraSeleccionada.fecha_fin).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400">Control de obras, finanzas y reportes en tiempo real</p>
+            </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="self-start sm:self-auto px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold transition-all shadow-sm"
+          >
+            🚪 Cerrar Sesión
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="self-start sm:self-auto px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold transition-all shadow-sm"
-        >
-          🚪 Cerrar Sesión
-        </button>
+
+        {/* BARRA DE PROGRESO GLOBAL */}
+        {selectedObraId && selectedObraId !== 'nueva' && (
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400 font-bold uppercase text-[10px]">Progreso General de la Reforma</span>
+              <span className="font-extrabold text-emerald-400 font-mono">{obraSeleccionada?.porcentaje_avance || 0}%</span>
+            </div>
+            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${obraSeleccionada?.porcentaje_avance || 0}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ENLACE PRIVADO CLIENTE */}
@@ -554,7 +611,7 @@ export default function NuevoPartePage() {
           )}
         </div>
 
-        {/* COLUMNA DERECHA: FORMULARIO Y FECHA DE INICIO */}
+        {/* COLUMNA DERECHA: FORMULARIO PUBLICACIÓN CON PROGRESO Y FECHAS */}
         <div className="lg:col-span-7">
           <form onSubmit={handleSubmit} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
             <div className="border-b border-slate-800 pb-3">
@@ -589,18 +646,48 @@ export default function NuevoPartePage() {
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Fecha de Inicio de la Obra</label>
+            {/* PLANIFICACIÓN Y FECHAS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Fecha de Inicio</label>
+                <input
+                  type="date"
+                  value={fechaInicioInput}
+                  onChange={(e) => setFechaInicioInput(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Fecha Estimada de Fin</label>
+                <input
+                  type="date"
+                  value={fechaFinInput}
+                  onChange={(e) => setFechaFinInput(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* CONTROL DEL PORCENTAJE DE AVANCE */}
+            <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-bold text-emerald-400 uppercase text-[11px]">Porcentaje de Avance de la Reforma</label>
+                <span className="font-extrabold text-emerald-400 text-sm font-mono">{porcentajeInput}%</span>
+              </div>
               <input
-                type="date"
-                value={fechaInicioInput}
-                onChange={(e) => setFechaInicioInput(e.target.value)}
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={porcentajeInput}
+                onChange={(e) => setPorcentajeInput(parseInt(e.target.value))}
+                className="w-full accent-emerald-500 cursor-pointer"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Estancia / Zona</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Estancia / Zona</label>
               <input
                 type="text"
                 required
@@ -612,7 +699,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Descripción de los avances</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Descripción de los avances</label>
               <textarea
                 required
                 rows={4}
@@ -624,7 +711,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">5. Fotografías de la jornada</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías de la jornada</label>
               <input
                 type="file"
                 multiple

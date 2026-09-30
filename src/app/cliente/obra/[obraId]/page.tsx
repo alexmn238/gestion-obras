@@ -12,6 +12,8 @@ interface Log {
   description: string;
   photos_urls: string[];
   fecha_inicio?: string;
+  fecha_fin?: string;
+  porcentaje_avance?: number;
   created_at: string;
 }
 
@@ -151,12 +153,10 @@ export default function ClienteObraPage() {
 
   const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento de Reforma';
 
-  // Obtener fecha de inicio (del primer log publicado o el más antiguo)
-  const fechaInicioObra = logs.length > 0 && logs[logs.length - 1].fecha_inicio
-    ? logs[logs.length - 1].fecha_inicio
-    : logs.length > 0
-    ? logs[logs.length - 1].created_at
-    : null;
+  const logUltimo = logs.length > 0 ? logs[0] : null;
+  const fechaInicioObra = logUltimo?.fecha_inicio || (logs.length > 0 ? logs[logs.length - 1].created_at : null);
+  const fechaFinObra = logUltimo?.fecha_fin || null;
+  const porcentajeAvance = logUltimo?.porcentaje_avance || 0;
 
   const totalPresupuestado = budgets.reduce((acc, b) => acc + Number(b.monto_total), 0);
   const totalPagado = budgets.reduce((acc, b) => acc + Number(b.monto_pagado), 0);
@@ -164,46 +164,69 @@ export default function ClienteObraPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
-              🏗️ {nombreEmpresa}
-            </span>
-            <span className="text-xs text-slate-400">• Portal del Cliente</span>
-            
-            {/* BADGE DE FECHA DE INICIO DE LA OBRA */}
-            {fechaInicioObra && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
-                📅 Inicio: {new Date(fechaInicioObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+      
+      {/* CABECERA PRINCIPAL CON BARRA DE PROGRESO */}
+      <header className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
+                🏗️ {nombreEmpresa}
               </span>
-            )}
+              <span className="text-xs text-slate-400">• Portal del Cliente</span>
+              
+              {fechaInicioObra && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+                  📅 Inicio: {new Date(fechaInicioObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </span>
+              )}
+
+              {fechaFinObra && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
+                  🏁 Fin Est.: {new Date(fechaFinObra).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
+            <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{nombreObraHeader}</h1>
-          <p className="text-xs text-slate-400 mt-1">Avances diarios, estado financiero y comunicación directa</p>
+
+          {budgets.length > 0 && (
+            <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl">
+              <div className="text-center px-2">
+                <span className="block text-[10px] text-slate-400 font-bold uppercase">Total</span>
+                <span className="text-sm font-bold text-white font-mono">{totalPresupuestado.toFixed(2)} €</span>
+              </div>
+              <div className="border-r border-slate-800"></div>
+              <div className="text-center px-2">
+                <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
+                <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
+              </div>
+              <div className="border-r border-slate-800"></div>
+              <div className="text-center px-2">
+                <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
+                <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {budgets.length > 0 && (
-          <div className="flex gap-3 bg-slate-950/80 border border-slate-800/80 p-3 rounded-xl">
-            <div className="text-center px-2">
-              <span className="block text-[10px] text-slate-400 font-bold uppercase">Total</span>
-              <span className="text-sm font-bold text-white font-mono">{totalPresupuestado.toFixed(2)} €</span>
-            </div>
-            <div className="border-r border-slate-800"></div>
-            <div className="text-center px-2">
-              <span className="block text-[10px] text-emerald-400 font-bold uppercase">Pagado</span>
-              <span className="text-sm font-bold text-emerald-400 font-mono">{totalPagado.toFixed(2)} €</span>
-            </div>
-            <div className="border-r border-slate-800"></div>
-            <div className="text-center px-2">
-              <span className="block text-[10px] text-rose-400 font-bold uppercase">Pendiente</span>
-              <span className="text-sm font-bold text-rose-400 font-mono">{totalPendiente.toFixed(2)} €</span>
-            </div>
+        {/* BARRA DE PROGRESO DE LA REFORMA */}
+        <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px]">Avance Global de la Obra</span>
+            <span className="font-extrabold text-emerald-400 font-mono text-sm">{porcentajeAvance}% Completado</span>
           </div>
-        )}
+          <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+            <div
+              className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-700 ease-out shadow-sm shadow-emerald-500/20"
+              style={{ width: `${porcentajeAvance}%` }}
+            ></div>
+          </div>
+        </div>
       </header>
 
-      {/* ESTADO DE PRESUPUESTOS Y NOTIFICACIONES */}
+      {/* SECCIÓN PRESUPUESTOS Y NOTIFICACIONES */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
