@@ -44,7 +44,7 @@ export default function ClienteObraPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [nombreEmpresa] = useState('Gestión de Reformas');
+  const [nombreEmpresa] = useState('Gestión De Reformas');
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [autorNombre, setAutorNombre] = useState('Cliente');
   const [estanciaFiltro, setEstanciaFiltro] = useState<string>('Todas');
@@ -86,7 +86,7 @@ export default function ClienteObraPage() {
           if (resBudgets.data.length > 0) setBudgetIdNotificar(resBudgets.data[0].id);
         }
       } catch (error) {
-        console.error('Error cargando los datos de la obra:', error);
+        console.error('Error al cargar los datos de la obra:', error);
       } finally {
         setLoading(false);
       }
@@ -158,14 +158,13 @@ export default function ClienteObraPage() {
     );
   }
 
-  const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento de Reforma';
+  const nombreObraHeader = logs.length > 0 && logs[0].nombre_obra ? logs[0].nombre_obra : 'Seguimiento De Reforma';
   const logUltimo = logs.length > 0 ? logs[0] : null;
   const fechaInicioObra = logUltimo?.fecha_inicio || (logs.length > 0 ? logs[logs.length - 1].created_at : null);
   const fechaFinObra = logUltimo?.fecha_fin || null;
   const porcentajeAvance = logUltimo?.porcentaje_avance || 0;
   const estadoObra = logUltimo?.estado_obra || 'En Progreso';
 
-  // Obtener lista única de estancias para filtrar
   const estanciasUnicas = Array.from(new Set(logs.map((l) => l.room_name)));
 
   const logsFiltrados = estanciaFiltro === 'Todas'
@@ -188,7 +187,6 @@ export default function ClienteObraPage() {
                 🏗️ {nombreEmpresa}
               </span>
               
-              {/* BADGE DE ESTADO DE LA OBRA */}
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                 estadoObra === 'Finalizada'
                   ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
@@ -211,7 +209,7 @@ export default function ClienteObraPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight print:text-black">{nombreObraHeader}</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight capitalize print:text-black">{nombreObraHeader}</h1>
             <p className="text-xs text-slate-400 mt-1 print:text-slate-600">Avances diarios, estado financiero y comunicación directa</p>
           </div>
 
@@ -247,7 +245,7 @@ export default function ClienteObraPage() {
         {/* BARRA DE PROGRESO */}
         <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2 print:bg-slate-100 print:border-slate-300">
           <div className="flex justify-between items-center text-xs">
-            <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] print:text-black">Avance Global de la Obra</span>
+            <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] print:text-black">Avance Global De La Obra</span>
             <span className="font-extrabold text-emerald-400 font-mono text-sm">{porcentajeAvance}% Completado</span>
           </div>
           <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
@@ -259,18 +257,18 @@ export default function ClienteObraPage() {
         </div>
       </header>
 
-      {/* SECCIÓN PRESUPUESTOS Y COMPROBANTES */}
+      {/* PRESUPUESTOS Y COMPROBANTES */}
       {budgets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-7 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3">
             <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-              💳 Estado de Presupuestos y Pagos
+              💳 Estado De Presupuestos Y Pagos
             </h2>
             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
               {budgets.map((b) => (
                 <div key={b.id} className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-semibold text-white block">
+                    <span className="font-semibold text-white block capitalize">
                       {b.titulo} {b.es_extra && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
                     </span>
                     <div className="flex items-center gap-2 text-[10px] text-emerald-400 mt-0.5">
@@ -293,13 +291,13 @@ export default function ClienteObraPage() {
 
           <div className="md:col-span-5 bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md space-y-3 print:hidden">
             <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-              📩 Avisar de Transferencia / Pago
+              📩 Avisar De Transferencia / Pago
             </h2>
             <form onSubmit={handleNotificarPago} className="space-y-2.5">
               <select
                 value={budgetIdNotificar}
                 onChange={(e) => setBudgetIdNotificar(e.target.value)}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 capitalize"
               >
                 {budgets.map((b) => (
                   <option key={b.id} value={b.id}>{b.titulo}</option>
@@ -326,21 +324,20 @@ export default function ClienteObraPage() {
                 disabled={enviandoPago}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20"
               >
-                {enviandoPago ? 'Enviando...' : 'Enviar Confirmación de Pago'}
+                {enviandoPago ? 'Enviando...' : 'Enviar Confirmación De Pago'}
               </button>
             </form>
           </div>
         </section>
       )}
 
-      {/* BITÁCORA CON FILTRO POR ZONA / ESTANCIA */}
+      {/* BITÁCORA */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
           <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            📸 Avances Diarios de la Obra ({logsFiltrados.length})
+            📸 Avances Diarios De La Obra ({logsFiltrados.length})
           </h2>
 
-          {/* FILTRO DE ESTANCIAS */}
           {estanciasUnicas.length > 0 && (
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 print:hidden">
               <button
@@ -355,7 +352,7 @@ export default function ClienteObraPage() {
                 <button
                   key={estancia}
                   onClick={() => setEstanciaFiltro(estancia)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
                     estanciaFiltro === estancia ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
@@ -377,7 +374,7 @@ export default function ClienteObraPage() {
                 <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">🛠️</span>
-                    <h3 className="font-bold text-sm text-white">{log.room_name}</h3>
+                    <h3 className="font-bold text-sm text-white capitalize">{log.room_name}</h3>
                   </div>
                   <span className="text-[11px] text-slate-400 font-mono">
                     {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -411,10 +408,10 @@ export default function ClienteObraPage() {
         )}
       </section>
 
-      {/* CANAL DE COMENTARIOS */}
+      {/* COMENTARIOS */}
       <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md print:hidden">
         <h2 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-          💬 Consultas y Comentarios con la Empresa
+          💬 Consultas Y Comentarios Con La Empresa
         </h2>
 
         <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -431,7 +428,7 @@ export default function ClienteObraPage() {
                 }`}
               >
                 <div className="flex justify-between text-[10px] text-slate-400">
-                  <span className="font-bold text-white">{c.autor}</span>
+                  <span className="font-bold text-white capitalize">{c.autor}</span>
                   <span>{new Date(c.created_at).toLocaleString('es-ES')}</span>
                 </div>
                 <p className="leading-relaxed">{c.contenido}</p>

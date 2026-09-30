@@ -388,7 +388,7 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO CON ESTADO DE LA OBRA */}
+      {/* ENCABEZADO */}
       <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -397,7 +397,7 @@ export default function NuevoPartePage() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel del Trabajador</h1>
+                <h1 className="text-2xl font-extrabold text-white tracking-tight">Panel Del Trabajador</h1>
                 <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2.5 py-0.5 rounded-full capitalize">
                   {nombreTrabajador}
                 </span>
@@ -422,11 +422,11 @@ export default function NuevoPartePage() {
           </button>
         </div>
 
-        {/* BARRA DE PROGRESO GLOBAL */}
+        {/* BARRA DE PROGRESO */}
         {selectedObraId && selectedObraId !== 'nueva' && (
           <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 space-y-1.5">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">Progreso General de la Reforma</span>
+              <span className="text-slate-400 font-bold uppercase text-[10px]">Progreso General De La Reforma</span>
               <span className="font-extrabold text-emerald-400 font-mono">{obraSeleccionada?.porcentaje_avance || 0}%</span>
             </div>
             <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
@@ -447,7 +447,7 @@ export default function NuevoPartePage() {
               🔗
             </div>
             <div className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-wider text-blue-400">Enlace Privado para el Cliente</span>
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-blue-400">Enlace Privado Para El Cliente</span>
               <p className="text-xs text-slate-300 font-mono truncate">{clienteUrl}</p>
             </div>
           </div>
@@ -469,7 +469,7 @@ export default function NuevoPartePage() {
             <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                  💰 Presupuestos y Cobros
+                  💰 Presupuestos Y Cobros
                 </h2>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
                   {budgets.length} Registro(s)
@@ -483,7 +483,7 @@ export default function NuevoPartePage() {
                   budgets.map((b) => (
                     <div key={b.id} className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
                       <div className="flex justify-between items-start">
-                        <span className="font-semibold text-xs text-slate-200">
+                        <span className="font-semibold text-xs text-slate-200 capitalize">
                           {b.titulo} {b.es_extra && <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold ml-1">EXTRA</span>}
                         </span>
                         <span className="font-mono text-xs font-bold text-white bg-slate-800 px-2 py-1 rounded-lg border border-slate-700">
@@ -512,7 +512,7 @@ export default function NuevoPartePage() {
                             onClick={() => handleAprobarNotificacionPago(b)}
                             className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all text-xs shadow-md shadow-emerald-600/20"
                           >
-                            ✓ Aprobar e Ingresar Pago
+                            ✓ Aprobar E Ingresar Pago
                           </button>
                         </div>
                       )}
@@ -521,9 +521,9 @@ export default function NuevoPartePage() {
                 )}
               </div>
 
-              {/* FORMULARIO AÑADIR PRESUPUESTO / COMPROBANTE */}
+              {/* FORMULARIO */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
-                <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto o Extra</span>
+                <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto O Extra</span>
                 <input
                   type="text"
                   placeholder="Título (Ej: Presupuesto Base)"
@@ -583,7 +583,7 @@ export default function NuevoPartePage() {
           {selectedObraId && selectedObraId !== 'nueva' && (
             <section className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl backdrop-blur-md">
               <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                💬 Canal con el Cliente
+                💬 Canal Con El Cliente
               </h2>
 
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -600,7 +600,7 @@ export default function NuevoPartePage() {
                       }`}
                     >
                       <div className="flex justify-between text-[10px] text-slate-400">
-                        <span className="font-bold text-white">{c.autor}</span>
+                        <span className="font-bold text-white capitalize">{c.autor}</span>
                         <span>{new Date(c.created_at).toLocaleString('es-ES')}</span>
                       </div>
                       <p className="leading-relaxed">{c.contenido}</p>
@@ -629,7 +629,7 @@ export default function NuevoPartePage() {
           )}
         </div>
 
-        {/* COLUMNA DERECHA: FORMULARIO */}
+        {/* COLUMNA DERECHA */}
         <div className="lg:col-span-7">
           <form onSubmit={handleSubmit} className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
             <div className="border-b border-slate-800 pb-3">
@@ -644,7 +644,7 @@ export default function NuevoPartePage() {
               <select
                 value={selectedObraId}
                 onChange={(e) => setSelectedObraId(e.target.value)}
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors capitalize"
               >
                 {misObras.map((obra) => (
                   <option key={obra.obra_id} value={obra.obra_id}>
@@ -666,7 +666,7 @@ export default function NuevoPartePage() {
               )}
             </div>
 
-            {/* ESTADO Y FECHAS DE LA OBRA */}
+            {/* ESTADO Y FECHAS */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
               <div>
                 <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Estado Obra</label>
@@ -702,10 +702,10 @@ export default function NuevoPartePage() {
               </div>
             </div>
 
-            {/* CONTROL DE PORCENTAJE */}
+            {/* PORCENTAJE */}
             <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <label className="font-bold text-emerald-400 uppercase text-[11px]">Porcentaje de Avance</label>
+                <label className="font-bold text-emerald-400 uppercase text-[11px]">Porcentaje De Avance</label>
                 <span className="font-extrabold text-emerald-400 text-sm font-mono">{porcentajeInput}%</span>
               </div>
               <input
@@ -732,7 +732,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Descripción de los avances</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">3. Descripción De Los Avances</label>
               <textarea
                 required
                 rows={4}
@@ -744,7 +744,7 @@ export default function NuevoPartePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías de la jornada</label>
+              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">4. Fotografías De La Jornada</label>
               <input
                 type="file"
                 multiple
