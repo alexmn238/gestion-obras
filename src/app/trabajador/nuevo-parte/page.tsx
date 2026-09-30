@@ -18,6 +18,14 @@ interface Comment {
   created_at: string;
 }
 
+interface Budget {
+  id: string;
+  titulo: string;
+  monto_total: number;
+  monto_pagado: number;
+  es_extra: boolean;
+}
+
 export default function NuevoPartePage() {
   const router = useRouter();
 
@@ -32,11 +40,17 @@ export default function NuevoPartePage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
-  // Estado para comentarios
+  // Estados para comentarios
   const [comentarios, setComentarios] = useState<Comment[]>([]);
   const [nuevoComentarioTrabajador, setNuevoComentarioTrabajador] = useState('');
 
-  // 1. Cargar obras del trabajador autenticado
+  // Estados para presupuestos y cobros
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [nuevoTotal, setNuevoTotal] = useState('');
+  const [esExtra, setEsExtra] = useState(false);
+
+  // 1. Cargar faenas asociadas al trabajador autenticado
   useEffect(() => {
     async function inicializarTrabajador() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -82,26 +96,35 @@ export default function NuevoPartePage() {
     inicializarTrabajador();
   }, [router]);
 
-  // 2. Cargar comentarios cuando cambia la obra seleccionada
+  // 2. Cargar comentarios y presupuestos al cambiar la obra seleccionada
   useEffect(() => {
     if (!selectedObraId || selectedObraId === 'nueva') {
       setComentarios([]);
+      setBudgets([]);
       return;
     }
 
-    async function cargarComentarios() {
-      const { data, error } = await supabase
+    async function cargarDatosObra() {
+      // Cargar Comentarios
+      const { data: dataComments } = await supabase
         .from('comments')
         .select('*')
         .eq('obra_id', selectedObraId)
         .order('created_at', { ascending: true });
 
-      if (!error && data) {
-        setComentarios(data);
-      }
+      if (dataComments) setComentarios(dataComments);
+
+      // Cargar Presupuestos
+      const { data: dataBudgets } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+
+      if (dataBudgets) setBudgets(dataBudgets);
     }
 
-    cargarComentarios();
+    cargarDatosObra();
   }, [selectedObraId]);
 
   const handleLogout = async () => {
@@ -121,7 +144,7 @@ export default function NuevoPartePage() {
     setTimeout(() => setCopiado(false), 2000);
   };
 
-  // Enviar respuesta desde el lado del trabajador
+  // Enviar comentario desde el trabajador
   const handleEnviarComentario = async () => {
     if (!nuevoComentarioTrabajador.trim() || !selectedObraId || selectedObraId === 'nueva') return;
 
@@ -136,7 +159,6 @@ export default function NuevoPartePage() {
 
     if (!error) {
       setNuevoComentarioTrabajador('');
-      // Recargar la lista de comentarios
       const { data } = await supabase
         .from('comments')
         .select('*')
@@ -145,6 +167,54 @@ export default function NuevoPartePage() {
       if (data) setComentarios(data);
     } else {
       alert('Error al enviar respuesta: ' + error.message);
+    }
+  };
+
+  // Crear Presupuesto o Extra
+  const handleCrearPresupuesto = async () => {
+    if (!nuevoTitulo.trim() || !nuevoTotal || !selectedObraId || selectedObraId === 'nueva') return;
+
+    const { error } = await supabase.from('budgets').insert([
+      {
+        obra_id: selectedObraId,
+        titulo: nuevoTitulo.trim(),
+        monto_total: parseFloat(nuevoTotal),
+        monto_pagado: 0,
+        es_extra: esExtra,
+      },
+    ]);
+
+    if (!error) {
+      setNuevoTitulo('');
+      setNuevoTotal('');
+      setEsExtra(false);
+      const { data } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+      if (data) setBudgets(data);
+    } else {
+      alert('Error al crear presupuesto: ' + error.message);
+    }
+  };
+
+  // Registrar pago / abono recibido del cliente
+  const handleRegistrarPago = async (budgetId: string, montoExistente: number, abono: number) => {
+    const { error } = await supabase
+      .from('budgets')
+      .update({ monto_pagado: montoExistente + abono })
+      .eq('id', budgetId);
+
+    if (!error) {
+      const { data } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('obra_id', selectedObraId)
+        .order('created_at', { ascending: true });
+      if (data) setBudgets(data);
+    } else {
+      alert('Error al actualizar pago: ' + error.message);
     }
   };
 
@@ -254,7 +324,7 @@ export default function NuevoPartePage() {
         </button>
       </div>
 
-      {/* BLOQUE ENLACE UUID PARA EL CLIENTE */}
+      {/* BLOQUE 1: ENLACE PRIVADO CLIENTE */}
       {clienteUrl && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
           <label className="block text-xs font-medium text-slate-300">
@@ -275,7 +345,86 @@ export default function NuevoPartePage() {
         </div>
       )}
 
-      {/* BLOQUE DE COMENTARIOS CON EL CLIENTE */}
+      {/* BLOQUE 2: GESTIÓN DE PRESUPUESTOS Y COBROS (INTERFAZ GRÁFICA AÑADIDA) */}
+      {selectedObraId && selectedObraId !== 'nueva' && (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-4">
+          <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+            💰 Presupuestos y Cobros de la Obra
+          </h3>
+
+          <div className="space-y-2">
+            {budgets.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No hay presupuestos asignados aún.</p>
+            ) : (
+              budgets.map((b) => (
+                <div key={b.id} className="bg-slate-900 p-3 rounded border border-slate-700 text-xs space-y-2">
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="text-white">{b.titulo} {b.es_extra && <span className="text-amber-400">[EXTRA]</span>}</span>
+                    <span className="text-blue-400">{Number(b.monto_total).toFixed(2)} €</span>
+                  </div>
+
+                  <div className="flex justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-1">
+                    <span>Pagado: <strong className="text-emerald-400">{Number(b.monto_pagado).toFixed(2)} €</strong></span>
+                    <span>Pendiente: <strong className="text-rose-400">{(Number(b.monto_total) - Number(b.monto_pagado)).toFixed(2)} €</strong></span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const abono = prompt('Indica la cantidad abonada por el cliente:');
+                      if (abono && !isNaN(parseFloat(abono))) {
+                        handleRegistrarPago(b.id, Number(b.monto_pagado), parseFloat(abono));
+                      }
+                    }}
+                    className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded text-[11px] transition-colors font-medium"
+                  >
+                    + Registrar Pago / Entrega
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="pt-3 border-t border-slate-700 space-y-2">
+            <span className="block text-xs font-medium text-slate-300">Añadir Nuevo Presupuesto o Extra</span>
+            <input
+              type="text"
+              placeholder="Título (Ej: Presupuesto Base o Extra Falso Techo)"
+              value={nuevoTitulo}
+              onChange={(e) => setNuevoTitulo(e.target.value)}
+              className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+            />
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Monto Total (€)"
+                value={nuevoTotal}
+                onChange={(e) => setNuevoTotal(e.target.value)}
+                className="flex-1 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+              />
+              <label className="flex items-center gap-1 text-xs text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={esExtra}
+                  onChange={(e) => setEsExtra(e.target.checked)}
+                  className="rounded border-slate-700 bg-slate-900"
+                />
+                ¿Es Extra?
+              </label>
+              <button
+                type="button"
+                onClick={handleCrearPresupuesto}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shrink-0 transition-colors"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOQUE 3: COMENTARIOS Y OBSERVACIONES CON EL CLIENTE */}
       {selectedObraId && selectedObraId !== 'nueva' && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
           <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
@@ -305,7 +454,6 @@ export default function NuevoPartePage() {
             </div>
           )}
 
-          {/* Responder al cliente */}
           <div className="flex gap-2 pt-2 border-t border-slate-700">
             <input
               type="text"
@@ -325,7 +473,7 @@ export default function NuevoPartePage() {
         </div>
       )}
 
-      {/* FORMULARIO PUBLICAR PARTE */}
+      {/* BLOQUE 4: FORMULARIO PUBLICAR PARTE */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Seleccionar Faena / Obra</label>
