@@ -61,11 +61,8 @@ export default function NuevoPartePage() {
   const [estadoObraInput, setEstadoObraInput] = useState('En Progreso');
 
   const [esAntesInput, setEsAntesInput] = useState(false);
-
-  // Clima para el trabajador
   const [climaInfo, setClimaInfo] = useState<{ temp: number; estado: string } | null>(null);
 
-  // Fases por defecto
   const [fases, setFases] = useState<Fase[]>([
     { id: '1', titulo: 'Demolición y Desescombro', completada: false },
     { id: '2', titulo: 'Electricidad y Fontanería', completada: false },
@@ -87,7 +84,8 @@ export default function NuevoPartePage() {
   const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [nuevoTotal, setNuevoTotal] = useState('');
-  const [comprobanteUrlInput, setComprobanteUrlInput] = useState('');
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
+  const [subiendoComprobante, setSubiendoComprobante] = useState(false);
   const [esExtra, setEsExtra] = useState(false);
 
   useEffect(() => {
@@ -103,7 +101,6 @@ export default function NuevoPartePage() {
       const nombre = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Trabajador';
       setNombreTrabajador(nombre);
 
-      // Cargar clima
       obtenerClima();
 
       const { data, error } = await supabase
@@ -159,7 +156,7 @@ export default function NuevoPartePage() {
         });
       }
     } catch (e) {
-      console.error('Error al obtener clima:', e);
+      console.error('Error clima:', e);
     }
   };
 
@@ -268,8 +265,30 @@ export default function NuevoPartePage() {
     if (pData) setPaymentLogs(pData);
   };
 
+  // Subir Factura / Recibo directo
   const handleCrearPresupuesto = async () => {
     if (!nuevoTitulo.trim() || !nuevoTotal || !selectedObraId || selectedObraId === 'nueva') return;
+
+    setSubiendoComprobante(true);
+    let finalComprobanteUrl: string | null = null;
+
+    if (comprobanteFile) {
+      const fileExt = comprobanteFile.name.split('.').pop();
+      const fileName = `factura-${Date.now()}.${fileExt}`;
+      const filePath = `${selectedObraId}/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('obras-media')
+        .upload(filePath, comprobanteFile);
+
+      if (!uploadErr) {
+        const { data: publicUrlData } = supabase.storage
+          .from('obras-media')
+          .getPublicUrl(filePath);
+
+        finalComprobanteUrl = publicUrlData.publicUrl;
+      }
+    }
 
     const { error } = await supabase.from('budgets').insert([
       {
@@ -278,14 +297,16 @@ export default function NuevoPartePage() {
         monto_total: parseFloat(nuevoTotal),
         monto_pagado: 0,
         es_extra: esExtra,
-        comprobante_url: comprobanteUrlInput.trim() || null,
+        comprobante_url: finalComprobanteUrl,
       },
     ]);
+
+    setSubiendoComprobante(false);
 
     if (!error) {
       setNuevoTitulo('');
       setNuevoTotal('');
-      setComprobanteUrlInput('');
+      setComprobanteFile(null);
       setEsExtra(false);
       recargarPagosYPresupuestos();
     }
@@ -320,7 +341,7 @@ export default function NuevoPartePage() {
 
     try {
       if (!userId) {
-        alert('Debes estar autenticado para publicar un parte.');
+        alert('Debes estar autenticado.');
         router.push('/login');
         return;
       }
@@ -330,7 +351,7 @@ export default function NuevoPartePage() {
 
       if (selectedObraId === 'nueva') {
         if (!nuevaObraNombre.trim()) {
-          alert('Por favor, indica un nombre para la nueva reforma.');
+          alert('Indica un nombre para la reforma.');
           setLoading(false);
           return;
         }
@@ -432,7 +453,7 @@ export default function NuevoPartePage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       
-      {/* ENCABEZADO CON WIDGET DE CLIMA */}
+      {/* CABECERA */}
       <header className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -455,7 +476,6 @@ export default function NuevoPartePage() {
                   ● {estadoObraInput}
                 </span>
 
-                {/* INDICADOR DE CLIMA EN VIVO */}
                 {climaInfo && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs font-bold">
                     {climaInfo.estado} ({climaInfo.temp}°C)
@@ -572,6 +592,7 @@ export default function NuevoPartePage() {
                 )}
               </div>
 
+              {/* AÑADIR PRESUPUESTO / SUBIR FACTURA DIRECTA */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <span className="block text-xs font-bold text-slate-300">Añadir Presupuesto O Extra</span>
                 <input
@@ -581,13 +602,17 @@ export default function NuevoPartePage() {
                   onChange={(e) => setNuevoTitulo(e.target.value)}
                   className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
                 />
-                <input
-                  type="url"
-                  placeholder="URL de Factura/Recibo en PDF o Foto (Opcional)"
-                  value={comprobanteUrlInput}
-                  onChange={(e) => setComprobanteUrlInput(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                />
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-400">📄 Adjuntar Factura O Recibo (PDF / Foto)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    onChange={(e) => setComprobanteFile(e.target.files ? e.target.files[0] : null)}
+                    className="w-full text-slate-400 text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-300 cursor-pointer"
+                  />
+                </div>
+
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -603,10 +628,11 @@ export default function NuevoPartePage() {
                   </label>
                   <button
                     type="button"
+                    disabled={subiendoComprobante}
                     onClick={handleCrearPresupuesto}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20"
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50"
                   >
-                    Guardar
+                    {subiendoComprobante ? 'Subiendo...' : 'Guardar'}
                   </button>
                 </div>
               </div>
